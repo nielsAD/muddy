@@ -1,0 +1,18 @@
+{
+	"twitch": {
+		"connection": {
+			"reconnect": true,
+			"secure": true
+		},
+		"identity": {
+			"username": "BotName",
+			"password": "oauth:"
+		}
+	},
+	"discord": {
+		"token": ""
+	},
+	"channels": {
+		"#twitchChannel": "discordChannel"
+	}
+}

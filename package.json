@@ -24,6 +24,7 @@
   },
   "homepage": "https://github.com/nielsAD/muddy-bot#readme",
   "dependencies": {
+    "discord.io": "^2.2.1",
     "tmi.js": "^1.1.1"
   }
 }
