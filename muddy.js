@@ -13,10 +13,8 @@ let twitch  = new tmi.client(Object.assign({}, conf.twitch, {
 }));
 
 let discord_ready = false;
+let twitch_ready  = false;
 
-let twitch_mods = {
-	//"channel": new Set()
-};
 let twitch_chat = {
 	//"channel": {
 	//	[new Date(), "User1", "Chat history"]
@@ -24,33 +22,25 @@ let twitch_chat = {
 };
 
 const twitch_chat_interval = setInterval(() => {
+	// Truncate the log to hold only messages from the past 60 seconds
 	const threshold = new Date() - 60000;
 	for (let c in twitch_chat) {
 		twitch_chat[c] = twitch_chat[c].filter( (log) => log[0] > threshold );
 	}
 }, 15000);
 
+function onMessage(chan, user, msg, self) {
+	if (!(chan in twitch_chat))
+		twitch_chat[chan] = [];
+	twitch_chat[chan].push([new Date(), user.username, msg]);
+}
+twitch.on("action", onMessage);
+twitch.on("chat", onMessage);
 
-twitch.on("connecting", (addr, port) => {
-	console.log(`Connecting to Twitch (${addr}:${port})`);
-});
 
-twitch.on("connected", (addr, port) => {
-	console.log(`Connected to Twitch (${addr}:${port})`);
-});
-
-twitch.on("logon", () => {
-	console.log(`Logged in to Twitch.`);
-});
-
-twitch.on("disconnected", (reason) => {
-	console.log(`Disconnected from Twitch (${reason})`);
-});
-
-twitch.on("reconnect", () => {
-	console.log("Reconnecting to Twitch");
-});
-
+let twitch_mods = {
+	//"channel": new Set()
+};
 
 twitch.on("mods", (chan, mods) => {
 	twitch_mods[chan] = new Set(mods);
@@ -64,14 +54,6 @@ twitch.on("unmod", (chan, mod) => {
 	if (chan in twitch_mods)
 		twitch_mods[chan].delete(mod);
 });
-
-function onMessage(chan, user, msg, self) {
-	if (!(chan in twitch_chat))
-		twitch_chat[chan] = [];
-	twitch_chat[chan].push([new Date(), user.username, msg]);
-}
-twitch.on("action", onMessage);
-twitch.on("chat", onMessage);
 
 
 function onAction(chan, action) {
@@ -101,30 +83,37 @@ ${chat}
 		}, (err) => {
 			if (err) {
 				console.log(`[DISCORD ERROR] ${err.statusCode} ${err.statusMessage}`);
-				console.log(log.toString());
+				console.error(log.toString());
 			}
 		});
 }
 
 twitch.on("ban",     (chan, user, reason)      => onAction(chan, `${user} was banned (${reason || "No reason given"})`));
 twitch.on("timeout", (chan, user, reason, len) => onAction(chan, `${user} was timed out for ${len}s (${reason || "No reason given"})`));
-twitch.on("clearchat", (chan)                  => onAction(chan, "Chat was cleared"));
-twitch.on("emoteonly", (chan, on)              => onAction(chan, `Emote-only mode ${on?"enabled":"disabled"}`));
-twitch.on("slowmode", (chan, on, len)          => onAction(chan, `Slow mode (${len}) ${on?"enabled":"disabled"}`));
+twitch.on("clearchat",   (chan)                => onAction(chan, "Chat was cleared"));
+twitch.on("emoteonly",   (chan, on)            => onAction(chan, `Emote-only mode ${on?"enabled":"disabled"}`));
+twitch.on("slowmode",    (chan, on, len)       => onAction(chan, `Slow mode (${len}) ${on?"enabled":"disabled"}`));
 twitch.on("subscribers", (chan, on)            => onAction(chan, `Subscribers mode ${on?"enabled":"disabled"}`));
 
 
+twitch.on("connecting",   (addr, port) => console.log(`Connecting to Twitch (${addr}:${port})`));
+twitch.on("connected",    (addr, port) => console.log(`Connected to Twitch (${addr}:${port})`));
+twitch.on("logon",        ()           => console.log(`Logged in to Twitch.`));
+twitch.on("disconnected", (reason)     => console.log(`Disconnected from Twitch (${reason})`));
+twitch.on("reconnect",    ()           => console.log("Reconnecting to Twitch"));
+
+discord.on("ready",      ()          => console.log(`Connected to Discord`));
+discord.on("disconnect", (err, code) => console.log(`Disconnected from Discord (${code}, ${err || "No message."})`));
+
+twitch.on("connected",    () => twitch_ready  = true);
+twitch.on("disconnected", () => twitch_ready  = false);
+discord.on("ready",       () => discord_ready = true);
+discord.on("disconnect",  () => discord_ready = false);
+
 discord.connect();
-discord.on("ready", () => {
-	discord_ready = true;
-	console.log(`Connected to Discord`);
-});
-
 discord.on("disconnect", (errMsg, code) => {
-	discord_ready = false;
-	console.log(`Disconnected from Discord (${code}, ${errMsg || "No message."})`);
-
 	if (discord_ready) {
+		// Try to reconnect if this was uncommanded
 		console.log("Reconnecting in 5 seconds");
 		setTimeout(() => discord.connect(), 5000);
 	}
