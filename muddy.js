@@ -74,7 +74,7 @@ Chat
 ${chat}
 `, "utf8");
 
-	if (discord_ready)
+	if (discord_ready && conf.channels[chan])
 		discord.uploadFile({
 			to: conf.channels[chan],
 			file: log,
