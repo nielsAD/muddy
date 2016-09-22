@@ -1,5 +1,5 @@
 {
-  "name": "muddy-bot",
+  "name": "muddy",
   "version": "0.1.0",
   "description": "Twitch <-> Discord bot to support chat moderators",
   "main": "./muddy.js",
@@ -9,7 +9,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/nielsAD/muddy-bot.git"
+    "url": "git+https://github.com/nielsAD/muddy.git"
   },
   "keywords": [
     "twitch",
@@ -20,9 +20,9 @@
   "author": "Niels A.D.",
   "license": "LGPL-3.0",
   "bugs": {
-    "url": "https://github.com/nielsAD/muddy-bot/issues"
+    "url": "https://github.com/nielsAD/muddy/issues"
   },
-  "homepage": "https://github.com/nielsAD/muddy-bot#readme",
+  "homepage": "https://github.com/nielsAD/muddy#readme",
   "dependencies": {
     "discord.io": "^2.2.1",
     "tmi.js": "^1.1.1"
