@@ -22,7 +22,7 @@ Chat
 Setup
 -----
 1. Make sure `nodejs` and `npm` are installed
-3. Install dependencies by using `npm install` inside the Muddy directory
+3. Install dependencies by executing `npm install` inside the Muddy directory
 4. Rename `config.json.example` to `config.json` and fill in Twitch/Discord/Channel details
 5. Run using `node muddy.js`
-6. Stop by sending a `SIGINT` (`ctrl+c`)
+6. Stop Muddy by sending a `SIGINT` (`ctrl+c`)
