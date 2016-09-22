@@ -10,13 +10,13 @@ Muddy-bot Log
 -------------
   Channel: #TwitchChannel
   Date:    Thu Sep 22 2016 17:09:20 GMT+0200 (CEST)
-  Action:  spammer was timed out for 10s (reason)
-  Mods:    moobot, muddy, nielsad
+  Action:  Spammer was timed out for 10s (reason)
+  Mods:    moobot, Muddy, nielsAD
 
 Chat
 ----
-  60s ago	nielsad	Chat message
-  19s ago	spammer	SPAM SPAM
+  60s ago   nielsAD   Regular chat message Kappa
+  19s ago   Spammer   SPAM SPAM
 ```
 
 Setup
