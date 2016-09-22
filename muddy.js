@@ -12,8 +12,11 @@ let twitch  = new tmi.client(Object.assign({}, conf.twitch, {
 	channels: Object.keys(conf.channels)
 }));
 
+// Set to true if connected and ready to send/receive messages
+// Set to false on application closing
 let discord_ready = false;
 let twitch_ready  = false;
+
 
 let twitch_chat = {
 	//"channel": {
@@ -85,7 +88,9 @@ ${chat}
 				console.log(`[DISCORD ERROR] ${err.statusCode} ${err.statusMessage}`);
 				console.error(log.toString());
 			}
-		});
+		})
+	else
+		console.error(log.toString());
 }
 
 twitch.on("ban",     (chan, user, reason)      => onAction(chan, `${user} was banned (${reason || "No reason given"})`));
@@ -101,12 +106,11 @@ twitch.on("connected",    (addr, port) => console.log(`Connected to Twitch (${ad
 twitch.on("logon",        ()           => console.log(`Logged in to Twitch.`));
 twitch.on("disconnected", (reason)     => console.log(`Disconnected from Twitch (${reason})`));
 twitch.on("reconnect",    ()           => console.log("Reconnecting to Twitch"));
+twitch.on("connected",    () => twitch_ready  = true);
+twitch.on("disconnected", () => twitch_ready  = false);
 
 discord.on("ready",      ()          => console.log(`Connected to Discord`));
 discord.on("disconnect", (err, code) => console.log(`Disconnected from Discord (${code}, ${err || "No message."})`));
-
-twitch.on("connected",    () => twitch_ready  = true);
-twitch.on("disconnected", () => twitch_ready  = false);
 discord.on("ready",       () => discord_ready = true);
 discord.on("disconnect",  () => discord_ready = false);
 
