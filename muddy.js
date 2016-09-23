@@ -20,7 +20,7 @@ let twitch_chat = {
 
 const twitch_chat_interval = setInterval(() => {
 	// Truncate the log to hold only messages from the past 60 seconds
-	const threshold = new Date() - 60000;
+	const threshold = new Date() - 80000;
 	for (let c in twitch_chat) {
 		twitch_chat[c] = twitch_chat[c].filter( (log) => log[0] > threshold );
 	}
@@ -54,10 +54,17 @@ twitch.on("unmod", (chan, mod) => {
 });
 
 
-function onAction(chan, action) {
+function pad(s, w, d=" ") {
+	s = String(s);
+	return (s.length < w)
+		? (d.repeat(w)+s).slice(-w)
+		: s;
+}
+
+function onAction(chan, action, user) {
 	const now = new Date();
 	const chat = (twitch_chat[chan] || [])
-		.map( ([t, u, m]) => `  ${Math.round((now - t)/1000)}s ago	${u}	${m}`)
+		.map( ([t, u, m]) => `${(user===u)?"*":" "} ${pad(Math.round((now - t)/1000), 2)}s ago   ${pad(u, 15)}   ${m}`)
 		.join("\n");
 
 	const name = `log${now.toISOString().replace(/[^\d]/g, "")}.txt`;
@@ -84,8 +91,8 @@ ${chat}
 		console.error(`[DISCORD] Channel unavailable ("${log.toString()}")`);
 }
 
-twitch.on("ban",     (chan, user, reason)      => onAction(chan, `${user} was banned (${reason || "No reason given"})`));
-twitch.on("timeout", (chan, user, reason, len) => onAction(chan, `${user} was timed out for ${len} second${len===1?"":"s"} (${reason || "No reason given"})`));
+twitch.on("ban",     (chan, user, reason)      => onAction(chan, `${user} was banned (${reason || "No reason given"})`, user));
+twitch.on("timeout", (chan, user, reason, len) => onAction(chan, `${user} was timed out for ${len} second${len===1?"":"s"} (${reason || "No reason given"})`, user));
 twitch.on("clearchat",   (chan)                => onAction(chan, "Chat was cleared"));
 twitch.on("emoteonly",   (chan, on)            => onAction(chan, `Emote-only mode ${on?"enabled":"disabled"}`));
 twitch.on("r9kbeta",     (chan, on)            => onAction(chan, `R9K mode ${on?"enabled":"disabled"}`));
