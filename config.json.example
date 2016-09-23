@@ -10,7 +10,12 @@
 		}
 	},
 	"discord": {
-		"token": ""
+		"connection": {
+			"api_request_method": "burst"
+		},
+		"identity": {
+			"token": ""
+		}
 	},
 	"channels": {
 		"#twitchChannel": "discordChannel"

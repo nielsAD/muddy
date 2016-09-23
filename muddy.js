@@ -1,22 +1,16 @@
 "use strict";
 
 const tmi  = require("tmi.js");
-const dio  = require("discord.io");
+const djs  = require("discord.js");
 const conf = require("./config.json");
 
-if (!conf.discord || !conf.twitch || !conf.channels)
+if (!conf.discord  || !conf.discord.identity || !conf.twitch || !conf.channels)
 	throw "Invalid config file.";
 
-let discord = new dio.Client(conf.discord);
+let discord = new djs.Client(conf.discord.connection);
 let twitch  = new tmi.client(Object.assign({}, conf.twitch, {
 	channels: Object.keys(conf.channels)
 }));
-
-// Set to true if connected and ready to send/receive messages
-// Set to false on application closing
-let discord_ready = false;
-let twitch_ready  = false;
-
 
 let twitch_chat = {
 	//"channel": {
@@ -38,7 +32,8 @@ function onMessage(chan, user, msg, self) {
 	twitch_chat[chan].push([new Date(), user.username, msg]);
 }
 twitch.on("action", onMessage);
-twitch.on("chat", onMessage);
+twitch.on("chat",   onMessage);
+twitch.on("notice", (chan, id, msg) => console.log(`[TWITCH] notice: ${id} "${msg}"`));
 
 
 let twitch_mods = {
@@ -64,7 +59,9 @@ function onAction(chan, action) {
 	const chat = (twitch_chat[chan] || [])
 		.map( ([t, u, m]) => `  ${Math.round((now - t)/1000)}s ago	${u}	${m}`)
 		.join("\n");
-	const log = Buffer.from(
+
+	const name = `log${now.toISOString().replace(/[^\d]/g, "")}.txt`;
+	const log  = Buffer.from(
 `Muddy-bot Log
 -------------
   Channel: ${chan}
@@ -77,26 +74,21 @@ Chat
 ${chat}
 `, "utf8");
 
-	if (discord_ready && conf.channels[chan])
-		discord.uploadFile({
-			to: conf.channels[chan],
-			file: log,
-			filename: `log${now.toISOString().replace(/[^\d]/g, "")}.txt`,
-			message: `[${chan}] ${action}`
-		}, (err) => {
-			if (err) {
-				console.log(`[DISCORD ERROR] ${err.statusCode} ${err.statusMessage}`);
-				console.error(log.toString());
-			}
-		})
+	const target = discord.readyTime && discord.channels.get(conf.channels[chan]);
+	if (target)
+		target.sendFile(log, name, `[${chan}] ${action}`).catch( (err) => {
+			console.log(`[DISCORD] ${err.message}`);
+			console.error(log.toString());
+		});
 	else
-		console.error(log.toString());
+		console.error(`[DISCORD] Channel unavailable ("${log.toString()}")`);
 }
 
 twitch.on("ban",     (chan, user, reason)      => onAction(chan, `${user} was banned (${reason || "No reason given"})`));
-twitch.on("timeout", (chan, user, reason, len) => onAction(chan, `${user} was timed out for ${len}s (${reason || "No reason given"})`));
+twitch.on("timeout", (chan, user, reason, len) => onAction(chan, `${user} was timed out for ${len} seconds (${reason || "No reason given"})`));
 twitch.on("clearchat",   (chan)                => onAction(chan, "Chat was cleared"));
 twitch.on("emoteonly",   (chan, on)            => onAction(chan, `Emote-only mode ${on?"enabled":"disabled"}`));
+twitch.on("r9kbeta",     (chan, on)            => onAction(chan, `R9K mode ${on?"enabled":"disabled"}`));
 twitch.on("slowmode",    (chan, on, len)       => onAction(chan, `Slow mode (${len}) ${on?"enabled":"disabled"}`));
 twitch.on("subscribers", (chan, on)            => onAction(chan, `Subscribers mode ${on?"enabled":"disabled"}`));
 
@@ -106,31 +98,18 @@ twitch.on("connected",    (addr, port) => console.log(`Connected to Twitch (${ad
 twitch.on("logon",        ()           => console.log(`Logged in to Twitch.`));
 twitch.on("disconnected", (reason)     => console.log(`Disconnected from Twitch (${reason})`));
 twitch.on("reconnect",    ()           => console.log("Reconnecting to Twitch"));
-twitch.on("connected",    () => twitch_ready  = true);
-twitch.on("disconnected", () => twitch_ready  = false);
 
-discord.on("ready",      ()          => console.log(`Connected to Discord`));
-discord.on("disconnect", (err, code) => console.log(`Disconnected from Discord (${code}, ${err || "No message."})`));
-discord.on("ready",       () => discord_ready = true);
-discord.on("disconnect",  () => discord_ready = false);
+discord.on("ready",        ()    => console.log(`Connected to Discord`));
+discord.on("reconnecting", ()    => console.log(`Reconnecting to Discord`));
+discord.on("error",        (err) => console.log(`[DISCORD] ${err.message}`));
 
-discord.connect();
-discord.on("disconnect", (errMsg, code) => {
-	if (discord_ready) {
-		// Try to reconnect if this was uncommanded
-		console.log("Reconnecting in 5 seconds");
-		setTimeout(() => discord.connect(), 5000);
-	}
-});
-
-let conn = twitch.connect();
+let twitch_conn  = twitch.connect();
+let discord_conn = discord.login(conf.discord.identity.token || conf.discord.identity.email, conf.discord.identity.password);
 
 process.on("SIGINT", () => {
 	console.log("SIGINT received. Disconnecting..");
-	conn.then(() => twitch.disconnect());
 	clearInterval(twitch_chat_interval);
-
-	discord_ready = false;
-	discord.disconnect();
+	twitch_conn.then(() => twitch.disconnect());
+	discord_conn.then(() => discord.destroy());
 });
 

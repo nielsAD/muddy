@@ -24,7 +24,7 @@
   },
   "homepage": "https://github.com/nielsAD/muddy#readme",
   "dependencies": {
-    "discord.io": "^2.2.1",
+    "discord.js": "^9.2.0",
     "tmi.js": "^1.1.1"
   }
 }
