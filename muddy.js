@@ -12,46 +12,64 @@ let twitch  = new tmi.client(Object.assign({}, conf.twitch, {
 	channels: Object.keys(conf.channels)
 }));
 
-let twitch_chat = {
-	//"channel": {
-	//	[new Date(), "User1", "Chat history"]
-	//]
-};
+const messages   = Symbol("messages");
+const num_seen   = Symbol("num_seen");
+const commands   = Symbol("commands");
+const moderators = Symbol("moderators");
+let twitch_chat = {};
 
-const twitch_chat_interval = setInterval(() => {
+function addChannel(chan) {
+	twitch_chat[chan] = {};
+	twitch_chat[chan][messages]   = [];
+	twitch_chat[chan][num_seen]   = 0;
+	twitch_chat[chan][commands]   = {};
+	twitch_chat[chan][moderators] = new Set();
+}
+
+function addCommand(chan, cmd, say) {
+	let time = Number.MIN_SAFE_INTEGER;
+	let num  = Number.MIN_SAFE_INTEGER;
+
+	twitch_chat[chan][commands][cmd] = function(force) {
+		const now = new Date();
+		if (!force && ((now - time) < 7500)) return;
+
+		const idx = twitch_chat[chan][num_seen];
+		if (!force && (Math.abs(idx - num) < 11)) return;
+
+		twitch.say(chan, say);
+		time = now;
+		num  = idx;
+	};
+}
+
+const twitch_chat_clear = setInterval(() => {
 	// Truncate the log to hold only messages from the past 60 seconds
 	const threshold = new Date() - 80000;
 	for (let c in twitch_chat) {
-		twitch_chat[c] = twitch_chat[c].filter( (log) => log[0] > threshold );
+		twitch_chat[c][messages] = twitch_chat[c][messages].filter( (log) => log[0] > threshold );
 	}
 }, 15000);
 
 function onMessage(chan, user, msg, self) {
-	if (!(chan in twitch_chat))
-		twitch_chat[chan] = [];
-	twitch_chat[chan].push([new Date(), user.username, msg]);
+	const count = twitch_chat[chan][num_seen] + 1;
+	twitch_chat[chan][messages].push([new Date(), user.username, msg]);
+	twitch_chat[chan][num_seen] = count % Number.MAX_SAFE_INTEGER;
+
+	if (msg[0] === "!") {
+		const [cmd, ...arg] = msg.split(/\s+/);
+		const fun = twitch_chat[chan][commands][cmd.toLowerCase()];
+		if (fun)
+			fun(/*force = */twitch_chat[chan][moderators].has(user.username));
+	}
 }
 twitch.on("action", onMessage);
 twitch.on("chat",   onMessage);
 twitch.on("notice", (chan, id, msg) => console.log(`[TWITCH] notice: ${id} "${msg}"`));
 
-
-let twitch_mods = {
-	//"channel": new Set()
-};
-
-twitch.on("mods", (chan, mods) => {
-	twitch_mods[chan] = new Set(mods);
-});
-twitch.on("mod", (chan, mod) => {
-	if (!(chan in twitch_mods))
-		twitch_mods[chan] = new Set();
-	twitch_mods[chan].add(mod);
-});
-twitch.on("unmod", (chan, mod) => {
-	if (chan in twitch_mods)
-		twitch_mods[chan].delete(mod);
-});
+twitch.on("mods",  (chan, mods) => {twitch_chat[chan][moderators] = new Set(mods); });
+twitch.on("mod",   (chan, mod)  => {twitch_chat[chan][moderators].add(mod); });
+twitch.on("unmod", (chan, mod)  => {twitch_chat[chan][moderators].delete(mod); });
 
 
 function pad(s, w, d=" ") {
@@ -63,8 +81,8 @@ function pad(s, w, d=" ") {
 
 function onAction(chan, action, user) {
 	const now = new Date();
-	const chat = (twitch_chat[chan] || [])
-		.map( ([t, u, m]) => `${(user===u)?"*":" "} ${pad(Math.round((now - t)/1000), 2)}s ago   ${pad(u, 15)}   ${m}`)
+	const chat = twitch_chat[chan][messages]
+		.map( ([t, u, m]) => `${(user===u)?"*":" "} ${pad(Math.round((now - t)/1000), 2)}s ago   ${pad(u, 25)}:   ${m}`)
 		.join("\n");
 
 	const name = `log${now.toISOString().replace(/[^\d]/g, "")}.txt`;
@@ -74,14 +92,14 @@ function onAction(chan, action, user) {
   Channel: ${chan}
   Date:    ${now.toString()}
   Action:  ${action}
-  Mods:    ${[...twitch_mods[chan] || []].join(", ")}
+  Mods:    ${[...twitch_chat[chan][moderators]].join(", ")}
 
 Chat
 ----
 ${chat}
 `, "utf8");
 
-	const target = discord.readyTime && discord.channels.get(conf.channels[chan]);
+	const target = discord.readyTime && discord.channels.get(conf.channels[chan].discord_log);
 	if (target)
 		target.sendFile(log, name, `[${chan}] ${action}`).catch( (err) => {
 			console.log(`[DISCORD] ${err.message}`);
@@ -110,12 +128,20 @@ discord.on("ready",        ()    => console.log(`Connected to Discord`));
 discord.on("reconnecting", ()    => console.log(`Reconnecting to Discord`));
 discord.on("error",        (err) => console.log(`[DISCORD] ${err.message}`));
 
+for (let c in conf.channels) {
+	addChannel(c);
+	for (let cmd in conf.channels[c]) {
+		if (cmd[0] === "!")
+			addCommand(c, cmd, conf.channels[c][cmd]);
+	}
+};
+
 let twitch_conn  = twitch.connect();
 let discord_conn = discord.login(conf.discord.identity.token || conf.discord.identity.email, conf.discord.identity.password);
 
 process.on("SIGINT", () => {
 	console.log("SIGINT received. Disconnecting..");
-	clearInterval(twitch_chat_interval);
+	clearInterval(twitch_chat_clear);
 	twitch_conn.then(() => twitch.disconnect());
 	discord_conn.then(() => discord.destroy());
 });

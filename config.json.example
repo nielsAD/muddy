@@ -18,6 +18,10 @@
 		}
 	},
 	"channels": {
-		"#twitchChannel": "discordChannel"
+		"#twitchChannel": {
+			"discord_log":    "discordChannelID",
+			"discord_config": "discordChannelID",
+			"!muddy":         "I'm alive! Source available at https://github.com/nielsAD/muddy PogChamp"
+		}
 	}
 }
