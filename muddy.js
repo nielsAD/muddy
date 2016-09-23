@@ -85,11 +85,11 @@ ${chat}
 }
 
 twitch.on("ban",     (chan, user, reason)      => onAction(chan, `${user} was banned (${reason || "No reason given"})`));
-twitch.on("timeout", (chan, user, reason, len) => onAction(chan, `${user} was timed out for ${len} seconds (${reason || "No reason given"})`));
+twitch.on("timeout", (chan, user, reason, len) => onAction(chan, `${user} was timed out for ${len} second${len===1?"":"s"} (${reason || "No reason given"})`));
 twitch.on("clearchat",   (chan)                => onAction(chan, "Chat was cleared"));
 twitch.on("emoteonly",   (chan, on)            => onAction(chan, `Emote-only mode ${on?"enabled":"disabled"}`));
 twitch.on("r9kbeta",     (chan, on)            => onAction(chan, `R9K mode ${on?"enabled":"disabled"}`));
-twitch.on("slowmode",    (chan, on, len)       => onAction(chan, `Slow mode (${len}) ${on?"enabled":"disabled"}`));
+twitch.on("slowmode",    (chan, on, wait)      => onAction(chan, `Slow mode ${on?"enabled":"disabled"} (${wait} second${wait===1?"":"s"} wait)`));
 twitch.on("subscribers", (chan, on)            => onAction(chan, `Subscribers mode ${on?"enabled":"disabled"}`));
 
 
