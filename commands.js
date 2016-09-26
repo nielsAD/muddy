@@ -230,7 +230,7 @@ class Command_Timezone extends Command {
 				resp(AFFERMATIVE());
 			}
 		else
-			resp(`Current timezone: "${this.chat.timezone||"unset"}"`);
+			resp(`Timezone: "${this.chat.timezone||"unset"}"`);
 	}
 }
 
@@ -547,21 +547,21 @@ const GLOBALS = {
 	"winner":        Command_Winner,
 	"time":          Command_Time,
 
-	"on":          Command_Enable,
-	"off":         Command_Disable,
+	"on":            Command_Enable,
+	"off":           Command_Disable,
 
-	"addcom":      Command_Set,
-	"editcom":     Command_Set,
-	"delcom":      Command_Unset,
-	"add":         Command_Set,
-	"rem":         Command_Unset,
+	"addcom":        Command_Set,
+	"editcom":       Command_Set,
+	"delcom":        Command_Unset,
+	"add":           Command_Set,
+	"rem":           Command_Unset,
 
-	"repeat":      Command_Timer,
-	"repeatoff":   Command_TimerOff,
-	"cycle":       Command_Timer,
-	"cycleoff":    Command_TimerOff,
+	"repeat":        Command_Timer,
+	"repeatoff":     Command_TimerOff,
+	"cycle":         Command_Timer,
+	"cycleoff":      Command_TimerOff,
 
-	"dump":        Command_Log
+	"dump":          Command_Log
 };
 
 module.exports = {
