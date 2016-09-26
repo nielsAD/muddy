@@ -20,7 +20,7 @@ function error(msg) {
 	throw new Error(msg);
 }
 
-if (!config.discord || !config.discord.identity || !config.twitch || !config.channels)
+if (!config.discord || !config.discord.identity || !config.twitch || !config.twitch.identity || !config.channels)
 	error("Invalid config file.");
 
 let discord = new djs.Client(Object.assign({}, config.discord.connection));
@@ -86,8 +86,39 @@ class Command_Leave extends commands.Command {
 	}
 }
 
-commands.GLOBALS["join"]  = Command_Join;
-commands.GLOBALS["leave"] = Command_Leave;
+class Command_Uptime extends commands.Command {
+	constructor(...args) {
+		super(...args);
+		this.description = "Get the duration of the stream up until now";
+		this.cooldown_time = this.cooldown_time || 10;
+	}
+
+	respond(resp) {
+		if (!this.chat || !this.chat.chan || !this.chat.chan.startsWith("#")) return;
+
+		this.disabled = true;
+		twitch.api({
+			url: `https://api.twitch.tv/kraken/streams/${this.chat.chan.slice(1)}`,
+			method: "GET",
+			headers: {
+				"Accept":   "application/vnd.twitchtv.v3+json",
+				"Client-ID": config.twitch.identity.clientid
+			}
+		}, (err, res, body) => {
+			this.disabled = false;
+			if (err) {
+				console.log(`[TWITCH API] ${err.message}`);
+				return;
+			}
+			if (body && body.stream)
+				resp("Stream started " + moment(body.stream.created_at).fromNow());
+		});
+	}
+}
+
+commands.GLOBALS["join"]   = Command_Join;
+commands.GLOBALS["leave"]  = Command_Leave;
+commands.GLOBALS["uptime"] = Command_Uptime;
 
 class TwitchChat {
 	constructor(chan, opt = {}) {
@@ -318,19 +349,23 @@ discord.on("message", (m) => {
 
 	const [cmd, ...args] = m.content.split(/\s+/);
 	const user  = `${m.author.username}#${m.author.discriminator}`;
-	const roles = [...m.member.roles.values()];
+	const role  = Math.max(...[...m.member.roles.values()].map( (r) => r.position ));
+	const roles = [...m.guild.roles.values()];
 
+	const owner = discord_owners.has(user);
+	const admin = m.member.hasPermission("ADMINISTRATOR");
 	chat.forEach( (c) => {
 		const command = c.command(cmd);
 		if (!command) return;
 
+		const mod = role >= (roles.find( (r) => r.name === c.discord_mods ) || {}).position;
 		const user_level = (
-			discord_owners.has(user)                       ? commands.USER_LEVEL.BOT_OWNER :
-			m.member.hasPermission("ADMINISTRATOR")        ? commands.USER_LEVEL.CHANNEL_OWNER :
-			roles.some( (r) => r.name === c.discord_mods)  ? commands.USER_LEVEL.CHANNEL_MOD :
-			                                                 commands.USER_LEVEL.USER
+			owner ? commands.USER_LEVEL.BOT_OWNER :
+			admin ? commands.USER_LEVEL.CHANNEL_OWNER :
+			mod   ? commands.USER_LEVEL.CHANNEL_MOD :
+			        commands.USER_LEVEL.USER
 		);
-		command.execute((s) => m.channel.sendMessage(`[${c.chan}] ${s}`), user_level, args);
+		command.execute((s) => !c.muted && m.channel.sendMessage(`[${c.chan}] ${s}`), user_level, args);
 	});
 });
 
