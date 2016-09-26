@@ -5,9 +5,10 @@ const moment = require("moment-timezone");
 const DELIM  = "!";
 const USER_LEVEL = {
 	USER         : 0,
-	CHANNEL_MOD  : 1,
-	CHANNEL_OWNER: 2,
-	BOT_OWNER    : 3
+	SUBSCRIBER   : 1,
+	CHANNEL_MOD  : 2,
+	CHANNEL_OWNER: 3,
+	BOT_OWNER    : 4
 }
 
 const AFFERMATIVE = function() {
@@ -19,6 +20,9 @@ const AFFERMATIVE = function() {
 	             "yes, master", "thy will be done", "done.", "as fast as I can"];
 	return () => arr[Math.floor(Math.random() * arr.length)];
 }();
+
+const COOLDOWN_DEF_TIME  = 5;
+const COOLDOWN_DEF_LINES = 5;
 
 class Command {
 	constructor(chat, cmd, opt = "") {
@@ -43,10 +47,10 @@ class Command {
 		const res = {
 			disabled:       this.disabled       || undefined,
 			timer:          this.timer          || undefined,
-			cooldown_time:  this.cooldown_time  || undefined,
-			cooldown_lines: this.cooldown_lines || undefined,
+			cooldown_time:  (this.cooldown_time !== COOLDOWN_DEF_TIME && this.cooldown_time)    || undefined,
+			cooldown_lines: (this.cooldown_lines !== COOLDOWN_DEF_LINES && this.cooldown_lines) || undefined,
 		};
-		return (Object.keys(res).length > 0) ? res : undefined;
+		return (Object.keys(res).some( (k) => res[k] !== undefined )) ? res : undefined;
 	}
 
 	get timer() { return this._timer; }
@@ -113,8 +117,8 @@ class CustomCommand extends Command {
 
 		super(chat, cmd, opt);
 		this.response = opt.response;
-		this.cooldown_time  = opt.cooldown_time  || 5;
-		this.cooldown_lines = opt.cooldown_lines || 3;
+		this.cooldown_time  = opt.cooldown_time  || COOLDOWN_DEF_TIME;
+		this.cooldown_lines = opt.cooldown_lines || COOLDOWN_DEF_LINES;
 	}
 
 	serialize() {
@@ -125,6 +129,23 @@ class CustomCommand extends Command {
 
 	respond(resp) {
 		return resp(this.response);
+	}
+}
+
+class Command_ModRights extends Command {
+	constructor(...args) {
+		super(...args);
+		this.level = USER_LEVEL.CHANNEL_OWNER;
+		this.description = "Toggle Twitch moderator command rights";
+	}
+
+	respond(resp) {
+		if (!this.chat) return;
+		this.chat.no_mod_rights = !this.chat.no_mod_rights;
+		resp((this.chat.no_mod_rights)
+			? "Moderators lost elevated command rights."
+			: "Moderators gained elevated command rights."
+		);
 	}
 }
 
@@ -386,25 +407,11 @@ class Command_Timezone extends Command {
 			return resp(`Usage: ${this.command} ${this.usage}`);
 
 		if (!moment.tz.zone(tz))
-			resp(`Unknown timezone "${tz}"`);
+			resp(`Unknown timezone "${tz}". Supported timezones: https://docs.nightbot.tv/commands/variables/time#timezones`);
 		else {
 			this.chat.timezone = tz;
 			resp(AFFERMATIVE());
 		}
-	}
-}
-
-class Command_Time extends Command {
-	constructor(...args) {
-		super(...args);
-		this.description = "Get local time";
-		this.cooldown_time  = this.cooldown_time  || 5;
-		this.cooldown_lines = this.cooldown_lines || 3;
-	}
-
-	respond(resp) {
-		if (!this.chat) return;
-		resp(moment().tz(this.chat.timezone).format("[Local time is] HH:mm z (MMM Do)"));
 	}
 }
 
@@ -422,7 +429,41 @@ class Command_Log extends Command {
 	}
 }
 
+class Command_Time extends Command {
+	constructor(...args) {
+		super(...args);
+		this.description = "Get local time";
+		this.cooldown_time  = this.cooldown_time  || COOLDOWN_DEF_TIME;
+		this.cooldown_lines = this.cooldown_lines || COOLDOWN_DEF_LINES;
+	}
+
+	respond(resp) {
+		if (!this.chat) return;
+		resp(moment().tz(this.chat.timezone).format("[Local time is] HH:mm z (MMM Do)"));
+	}
+}
+
+class Command_Winner extends Command {
+	constructor(...args) {
+		super(...args);
+		this.level = USER_LEVEL.CHANNEL_MOD;
+		this.usage = "[minutes]";
+		this.description = "Pick random user from chat who said something in the last x minutes";
+	}
+
+	respond(resp, [min = 10]) {
+		if (!this.chat) return;
+
+		const threshold = new Date() - ((parseInt(min)||1) * 60000);
+		const users = Object.keys(this.chat.users||{}).filter( (u) => this.chat.users[u][0] > threshold);
+		if (users.length < 1) return;
+
+		resp("@" + users[Math.floor(Math.random() * users.length)]);
+	}
+}
+
 const GLOBALS = {
+	"modrights":   Command_ModRights,
 	"enable":      Command_Enable,
 	"disable":     Command_Disable,
 	"command":     Command_Command,
@@ -437,8 +478,11 @@ const GLOBALS = {
 	"timer":       Command_Timer,
 	"timeroff":    Command_TimerOff,
 	"timezone":    Command_Timezone,
-	"time":        Command_Time,
 	"log":         Command_Log,
+	"winner":      Command_Winner,
+	"time":        Command_Time,
+
+	"mods":        Command_ModRights,
 
 	"on":          Command_Enable,
 	"off":         Command_Disable,
@@ -466,8 +510,10 @@ module.exports = {
 	Command:       Command,
 	CustomCommand: CustomCommand,
 
+	Command_ModRights:   Command_ModRights,
 	Command_Enable:      Command_Enable,
 	Command_Disable:     Command_Disable,
+	Command_Command:     Command_Command,
 	Command_Mute:        Command_Mute,
 	Command_Unmute:      Command_Unmute,
 	Command_Set:         Command_Set,
@@ -479,6 +525,7 @@ module.exports = {
 	Command_Timer:       Command_Timer,
 	Command_TimerOff:    Command_TimerOff,
 	Command_Timezone:    Command_Timezone,
+	Command_Log:         Command_Log,
 	Command_Time:        Command_Time,
-	Command_Command:     Command_Command
+	Command_Winner:      Command_Winner
 };

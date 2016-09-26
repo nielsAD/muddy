@@ -1,5 +1,6 @@
 "use strict";
 
+const fs     = require("fs");
 const util   = require("util");
 const moment = require("moment-timezone");
 const tmi    = require("tmi.js");
@@ -19,12 +20,14 @@ function error(msg) {
 	throw new Error(msg);
 }
 
-if (!config.discord  || !config.discord.identity || !config.twitch || !config.channels)
+if (!config.discord || !config.discord.identity || !config.twitch || !config.channels)
 	error("Invalid config file.");
 
-let discord = new djs.Client(config.discord.connection);
-let twitch  = new tmi.client(config.twitch);
-let twitch_chat = {};
+let discord = new djs.Client(Object.assign({}, config.discord.connection));
+let twitch  = new tmi.client(Object.assign({}, config.twitch));
+
+let twitch_chat  = {};
+let discord_chat = {};
 
 const twitch_owners  = new Set(config.twitch.owners);
 const discord_owners = new Set(config.discord.owners);
@@ -94,6 +97,7 @@ class TwitchChat {
 		this.users      = opt.users      || {};
 		this.moderators = opt.moderators || new Set();
 
+		this.no_mod_rights  = opt.no_mod_rights  || false;
 		this.timezone       = opt.timezone       || moment.tz.guess();
 		this.muted          = opt.muted          || false;
 		this.discord_log    = opt.discord_log    || "";
@@ -120,10 +124,6 @@ class TwitchChat {
 		return Object.keys(twitch_chat).map( (c) => twitch_chat[c]);
 	}
 
-	static fromDiscord(chan) {
-		return this.channels.find( (c) => c.discord_config === chan);
-	}
-
 	static join(chan, opt = {}) {
 		twitch_chat[chan.toLowerCase()] = new TwitchChat(chan, opt);
 		return twitch.join(chan).then( () => {
@@ -145,7 +145,8 @@ class TwitchChat {
 
 	serialize() {
 		let res = {
-			no_twitch_config: !this.use_globals   || undefined,
+			no_mod_rights:    this.no_mod_rights  || undefined,
+			timezone:         this.timezone       || undefined,
 			muted:            this.muted          || undefined,
 			discord_log:      this.discord_log    || undefined,
 			discord_config:   this.discord_config || undefined,
@@ -153,6 +154,7 @@ class TwitchChat {
 		};
 		for (let cmd in this.commands)
 			res.commands[this.commands[cmd].command] = this.commands[cmd].serialize();
+		return res;
 	}
 
 	static serialize() {
@@ -160,6 +162,7 @@ class TwitchChat {
 		this.channels.forEach( (c) => {
 			res[c.chan] = c.serialize();
 		});
+		return res;
 	}
 
 	addMessage(user, message, date = new Date()) {
@@ -185,7 +188,8 @@ class TwitchChat {
 				const user_level = (
 					twitch_owners.has(user.username)              ? commands.USER_LEVEL.BOT_OWNER :
 					(this.chan.toLowerCase()==="#"+user.username) ? commands.USER_LEVEL.CHANNEL_OWNER :
-					user.mod                                      ? commands.USER_LEVEL.CHANNEL_MOD :
+					user.mod && !this.no_mod_rights               ? commands.USER_LEVEL.CHANNEL_MOD :
+					user.mod || user.subscriber                   ? commands.USER_LEVEL.SUBSCRIBER :
 					                                                commands.USER_LEVEL.USER
 				);
 				command.execute((s) => this.say(s), user_level, args);
@@ -310,9 +314,25 @@ const twitch_chat_clear = setInterval(() => {
 	TwitchChat.channels.forEach( (c) => c.truncateMessages(threshold) );
 }, 15000);
 
+const config_save_clear = function() {
+	let last = "";
+	return setInterval(() => {
+		config.channels = TwitchChat.serialize();
+		const conf = JSON.stringify(config, undefined, "\t");
+		if (last !== conf) {
+			last = conf;
+			fs.writeFile("./config.json", conf, (err) => {
+				if (err) error(err);
+				console.log("Updated config.json");
+			});
+		}
+	}, 60000);
+}();
+
 process.on("SIGINT", () => {
 	console.log("SIGINT received. Disconnecting..");
 	clearInterval(twitch_chat_clear);
+	clearInterval(config_save_clear);
 	TwitchChat.channels.forEach( (c) => c.part() );
 	twitch_conn.then(() => twitch.disconnect());
 	discord_conn.then(() => discord.destroy());
