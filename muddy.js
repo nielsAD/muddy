@@ -97,11 +97,13 @@ class TwitchChat {
 		this.users      = opt.users      || {};
 		this.moderators = opt.moderators || new Set();
 
-		this.no_mod_rights  = opt.no_mod_rights  || false;
-		this.timezone       = opt.timezone       || moment.tz.guess();
-		this.muted          = opt.muted          || false;
-		this.discord_log    = opt.discord_log    || "";
-		this.discord_config = opt.discord_config || "";
+		this.no_mod_rights = opt.no_mod_rights || false;
+		this.timezone      = opt.timezone      || moment.tz.guess();
+		this.muted         = opt.muted         || false;
+
+		this.discord_guild = opt.discord_guild || "";
+		this.discord_mods  = opt.discord_mods  || "";
+		this.discord_log   = opt.discord_log   || "";
 
 		this.commands = {};
 		if (!opt.commands)
@@ -134,6 +136,7 @@ class TwitchChat {
 	}
 
 	part() {
+		this.discord_guild = "";
 		for (let cmd in this.commands)
 			this.commands[cmd].stop();
 
@@ -145,12 +148,13 @@ class TwitchChat {
 
 	serialize() {
 		let res = {
-			no_mod_rights:    this.no_mod_rights  || undefined,
-			timezone:         this.timezone       || undefined,
-			muted:            this.muted          || undefined,
-			discord_log:      this.discord_log    || undefined,
-			discord_config:   this.discord_config || undefined,
-			commands:         {}
+			no_mod_rights:   this.no_mod_rights || undefined,
+			timezone:        this.timezone      || undefined,
+			muted:           this.muted         || undefined,
+			discord_guild:   this.discord_guild || undefined,
+			discord_mods:    this.discord_mods  || undefined,
+			discord_log:     this.discord_log   || undefined,
+			commands:        {}
 		};
 		for (let cmd in this.commands)
 			res.commands[this.commands[cmd].command] = this.commands[cmd].serialize();
@@ -163,6 +167,17 @@ class TwitchChat {
 			res[c.chan] = c.serialize();
 		});
 		return res;
+	}
+
+	get discord_guild() { return this._discord_guild; }
+	set discord_guild(g) {
+		if (this.discord_guild)
+			discord_chat[this.discord_guild].delete(this);
+		if (!g) return;
+		if (!(g in discord_chat))
+			discord_chat[g] = new Set();
+		this._discord_guild = g;
+		discord_chat[g].add(this);
 	}
 
 	addMessage(user, message, date = new Date()) {
@@ -293,6 +308,31 @@ twitch.on("connected",    (addr, port) => console.log(`Connected to Twitch (${ad
 twitch.on("logon",        ()           => console.log(`Logged in to Twitch.`));
 twitch.on("disconnected", (reason)     => console.log(`Disconnected from Twitch (${reason})`));
 twitch.on("reconnect",    ()           => console.log("Reconnecting to Twitch"));
+
+discord.on("message", (m) => {
+	if (m.author.bot || m.channel.type !== "text" || !m.content.startsWith(commands.DELIM))
+		return;
+
+	const chat = discord_chat[m.guild.id];
+	if (!chat || chat.size < 1) return;
+
+	const [cmd, ...args] = m.content.split(/\s+/);
+	const user  = `${m.author.username}#${m.author.discriminator}`;
+	const roles = [...m.member.roles.values()];
+
+	chat.forEach( (c) => {
+		const command = c.command(cmd);
+		if (!command) return;
+
+		const user_level = (
+			discord_owners.has(user)                       ? commands.USER_LEVEL.BOT_OWNER :
+			m.member.hasPermission("ADMINISTRATOR")        ? commands.USER_LEVEL.CHANNEL_OWNER :
+			roles.some( (r) => r.name === c.discord_mods)  ? commands.USER_LEVEL.CHANNEL_MOD :
+			                                                 commands.USER_LEVEL.USER
+		);
+		command.execute((s) => m.channel.sendMessage(`[${c.chan}] ${s}`), user_level, args);
+	});
+});
 
 discord.on("ready",        ()    => console.log(`Connected to Discord`));
 discord.on("reconnecting", ()    => console.log(`Reconnecting to Discord`));

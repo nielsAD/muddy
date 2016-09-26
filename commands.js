@@ -132,6 +132,67 @@ class CustomCommand extends Command {
 	}
 }
 
+class Command_DiscordGuild extends Command {
+	constructor(...args) {
+		super(...args);
+		this.level = USER_LEVEL.BOT_OWNER;
+		this.usage = "[id]";
+		this.description = "Get/Set Discord guild";
+	}
+
+	respond(resp, [guild]) {
+		if (!this.chat) return;
+
+		if (guild) {
+			this.chat.discord_guild = guild;
+			resp(AFFERMATIVE());
+		} else {
+			resp(`Current guild: "${this.chat.discord_guild||"unset"}"`);
+		}
+	}
+}
+
+class Command_DiscordModRole extends Command {
+	constructor(...args) {
+		super(...args);
+		this.level = USER_LEVEL.CHANNEL_OWNER;
+		this.usage = "[role]";
+		this.description = "Get/Set Discord moderator role";
+	}
+
+	respond(resp, [role]) {
+		if (!this.chat) return;
+
+		if (role) {
+			this.chat.discord_mods = role;
+			resp(AFFERMATIVE());
+		} else {
+			resp(`Current role: "${this.chat.discord_mods||"unset"}"`);
+		}
+	}
+}
+
+class Command_DiscordLogChannel extends Command {
+	constructor(...args) {
+		super(...args);
+		this.level = USER_LEVEL.CHANNEL_OWNER;
+		this.usage = "[channel]";
+		this.description = "Get/Set Discord log channel";
+	}
+
+	respond(resp, [chan]) {
+		if (!this.chat) return;
+
+		if (chan) {
+			const r = chan.match(/^<#(\d+)>$/);
+			this.chat.discord_log = (r && r[1]) || chan;
+			resp(AFFERMATIVE());
+		} else {
+			resp(`Current channel: "<#${this.chat.discord_log||"unset"}>"`);
+		}
+	}
+}
+
 class Command_ModRights extends Command {
 	constructor(...args) {
 		super(...args);
@@ -143,9 +204,32 @@ class Command_ModRights extends Command {
 		if (!this.chat) return;
 		this.chat.no_mod_rights = !this.chat.no_mod_rights;
 		resp((this.chat.no_mod_rights)
-			? "Moderators lost elevated command rights."
-			: "Moderators gained elevated command rights."
+			? "Twitch moderators lost elevated command rights."
+			: "Twitch moderators gained elevated command rights."
 		);
+	}
+}
+
+class Command_Timezone extends Command {
+	constructor(...args) {
+		super(...args);
+		this.level = USER_LEVEL.CHANNEL_MOD;
+		this.usage = "[zone]";
+		this.description = "Get/Set timezone";
+	}
+
+	respond(resp, [tz]) {
+		if (!this.chat) return;
+
+		if (tz)
+			if (!moment.tz.zone(tz))
+				resp(`Unknown timezone "${tz}". Supported timezones: https://docs.nightbot.tv/commands/variables/time#timezones`);
+			else {
+				this.chat.timezone = tz;
+				resp(AFFERMATIVE());
+			}
+		else
+			resp(`Current timezone: "${this.chat.timezone||"unset"}"`);
 	}
 }
 
@@ -393,28 +477,6 @@ class Command_TimerOff extends Command_Timer {
 	}
 }
 
-class Command_Timezone extends Command {
-	constructor(...args) {
-		super(...args);
-		this.level = USER_LEVEL.CHANNEL_MOD;
-		this.usage = "[zone]";
-		this.description = "Set timezone";
-	}
-
-	respond(resp, [tz]) {
-		if (!this.chat) return;
-		if (!tz)
-			return resp(`Usage: ${this.command} ${this.usage}`);
-
-		if (!moment.tz.zone(tz))
-			resp(`Unknown timezone "${tz}". Supported timezones: https://docs.nightbot.tv/commands/variables/time#timezones`);
-		else {
-			this.chat.timezone = tz;
-			resp(AFFERMATIVE());
-		}
-	}
-}
-
 class Command_Log extends Command {
 	constructor(...args) {
 		super(...args);
@@ -426,20 +488,6 @@ class Command_Log extends Command {
 		if (!this.chat) return;
 		this.chat.logAction(`User triggered ${this.command} (${reason.join(" ")||"No reason specified"})`);
 		resp(AFFERMATIVE());
-	}
-}
-
-class Command_Time extends Command {
-	constructor(...args) {
-		super(...args);
-		this.description = "Get local time";
-		this.cooldown_time  = this.cooldown_time  || COOLDOWN_DEF_TIME;
-		this.cooldown_lines = this.cooldown_lines || COOLDOWN_DEF_LINES;
-	}
-
-	respond(resp) {
-		if (!this.chat) return;
-		resp(moment().tz(this.chat.timezone).format("[Local time is] HH:mm z (MMM Do)"));
 	}
 }
 
@@ -462,27 +510,43 @@ class Command_Winner extends Command {
 	}
 }
 
-const GLOBALS = {
-	"modrights":   Command_ModRights,
-	"enable":      Command_Enable,
-	"disable":     Command_Disable,
-	"command":     Command_Command,
-	"mute":        Command_Mute,
-	"unmute":      Command_Unmute,
-	"set":         Command_Set,
-	"unset":       Command_Unset,
-	"cooldown":    Command_Cooldown,
-	"cooldownoff": Command_CooldownOff,
-	"spacing":     Command_Spacing,
-	"spacingoff":  Command_SpacingOff,
-	"timer":       Command_Timer,
-	"timeroff":    Command_TimerOff,
-	"timezone":    Command_Timezone,
-	"log":         Command_Log,
-	"winner":      Command_Winner,
-	"time":        Command_Time,
+class Command_Time extends Command {
+	constructor(...args) {
+		super(...args);
+		this.description = "Get local time";
+		this.cooldown_time  = this.cooldown_time  || COOLDOWN_DEF_TIME;
+		this.cooldown_lines = this.cooldown_lines || COOLDOWN_DEF_LINES;
+	}
 
-	"mods":        Command_ModRights,
+	respond(resp) {
+		if (!this.chat) return;
+		resp(moment().tz(this.chat.timezone).format("[Local time is] HH:mm z (MMM Do)"));
+	}
+}
+
+
+const GLOBALS = {
+	"discord_guild": Command_DiscordGuild,
+	"discord_mods":  Command_DiscordModRole,
+	"discord_log":   Command_DiscordLogChannel,
+	"modrights":     Command_ModRights,
+	"timezone":      Command_Timezone,
+	"enable":        Command_Enable,
+	"disable":       Command_Disable,
+	"command":       Command_Command,
+	"mute":          Command_Mute,
+	"unmute":        Command_Unmute,
+	"set":           Command_Set,
+	"unset":         Command_Unset,
+	"cooldown":      Command_Cooldown,
+	"cooldownoff":   Command_CooldownOff,
+	"spacing":       Command_Spacing,
+	"spacingoff":    Command_SpacingOff,
+	"timer":         Command_Timer,
+	"timeroff":      Command_TimerOff,
+	"log":           Command_Log,
+	"winner":        Command_Winner,
+	"time":          Command_Time,
 
 	"on":          Command_Enable,
 	"off":         Command_Disable,
