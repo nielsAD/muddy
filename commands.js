@@ -122,9 +122,10 @@ class CustomCommand extends Command {
 	}
 
 	serialize() {
-		return Object.assign({}, super.serialize() || {}, {
-			response: this.response
+		const res = Object.assign({}, super.serialize(), {
+			response: this.response || undefined
 		});
+		return (Object.keys(res).some( (k) => res[k] !== undefined )) ? res : undefined;
 	}
 
 	respond(resp) {
@@ -510,12 +511,10 @@ class Command_Winner extends Command {
 	}
 }
 
-class Command_Time extends Command {
+class Command_Time extends CustomCommand {
 	constructor(...args) {
 		super(...args);
 		this.description = "Get local time";
-		this.cooldown_time  = this.cooldown_time  || COOLDOWN_DEF_TIME;
-		this.cooldown_lines = this.cooldown_lines || COOLDOWN_DEF_LINES;
 	}
 
 	respond(resp) {

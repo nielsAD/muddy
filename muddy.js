@@ -86,33 +86,40 @@ class Command_Leave extends commands.Command {
 	}
 }
 
-class Command_Uptime extends commands.Command {
+class Command_Uptime extends commands.CustomCommand {
 	constructor(...args) {
 		super(...args);
 		this.description = "Get the duration of the stream up until now";
-		this.cooldown_time = this.cooldown_time || 10;
+		this.last_api = null;
+		this.since    = null;
 	}
 
 	respond(resp) {
 		if (!this.chat || !this.chat.chan || !this.chat.chan.startsWith("#")) return;
 
-		this.disabled = true;
-		twitch.api({
-			url: `https://api.twitch.tv/kraken/streams/${this.chat.chan.slice(1)}`,
-			method: "GET",
-			headers: {
-				"Accept":   "application/vnd.twitchtv.v3+json",
-				"Client-ID": config.twitch.identity.clientid
-			}
-		}, (err, res, body) => {
-			this.disabled = false;
-			if (err) {
-				console.log(`[TWITCH API] ${err.message}`);
-				return;
-			}
-			if (body && body.stream)
-				resp("Stream started " + moment(body.stream.created_at).fromNow());
-		});
+		const now = new Date();
+		if ((now - this.last_api) >= 180000) {
+			this.disabled = true;
+			twitch.api({
+				url: `https://api.twitch.tv/kraken/streams/${this.chat.chan.slice(1)}`,
+				method: "GET",
+				headers: {
+					"Accept":   "application/vnd.twitchtv.v3+json",
+					"Client-ID": config.twitch.identity.clientid
+				}
+			}, (err, res, body) => {
+				this.disabled = false;
+				if (err) {
+					console.log(`[TWITCH API] ${err.message}`);
+					return;
+				}
+				this.last_api = now;
+				this.since    = body && body.stream && body.stream.created_at;
+				if (this.since)
+					resp("Stream started " + moment(this.since).fromNow());
+			});
+		} else if (this.since)
+			resp("Stream started " + moment(this.since).fromNow());
 	}
 }
 
