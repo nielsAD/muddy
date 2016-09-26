@@ -7,7 +7,8 @@
 		"identity": {
 			"username": "BotName",
 			"password": "oauth:"
-		}
+		},
+		"owners": ["nielsad"]
 	},
 	"discord": {
 		"connection": {
@@ -15,13 +16,18 @@
 		},
 		"identity": {
 			"token": ""
-		}
-	},
+		},
+		"owners": ["niels#1234"]
+	}
 	"channels": {
 		"#twitchChannel": {
-			"discord_log":    "discordChannelID",
-			"discord_config": "discordChannelID",
-			"!muddy":         "I'm alive! Source available at https://github.com/nielsAD/muddy PogChamp"
+			"discord_guild": "discordGuildID",
+			"discord_mods":  "discordRoleName",
+			"discord_log":   "discordChannelID",
+			"commands": {
+				"!muddy": {
+					"response": "I'm alive! Source available at https://github.com/nielsAD/muddy PogChamp"
+				}
+			}
 		}
-	}
 }
