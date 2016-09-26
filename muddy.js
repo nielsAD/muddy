@@ -4,10 +4,15 @@ const fs     = require("fs");
 const util   = require("util");
 const moment = require("moment-timezone");
 const tmi    = require("tmi.js");
+const tps    = require("tps.js");
 const djs    = require("discord.js");
 
 const config   = require("./config.json");
 const commands = require("./commands.js");
+
+function error(msg) {
+	throw new Error(msg);
+}
 
 function pad(s, w, d=" ") {
 	s = String(s);
@@ -16,15 +21,28 @@ function pad(s, w, d=" ") {
 		: s;
 }
 
-function error(msg) {
-	throw new Error(msg);
+function twitch_api(opt) {
+	const auth = config.twitch.identity.password.startsWith("oauth:")
+		? "OAuth " + config.twitch.identity.password.slice(6)
+		: undefined;
+	return new Promise((resolve, reject) => {
+		twitch.api(Object.assign({}, opt, {
+			method: "GET",
+			headers: {
+				"Accept":        "application/vnd.twitchtv.v3+json",
+				"Client-ID":     config.twitch.identity.clientid,
+				"Authorization": auth
+			}
+		}), (err, res, body) => (err) ? reject(err) : resolve(body));
+	});
 }
 
 if (!config.discord || !config.discord.identity || !config.twitch || !config.twitch.identity || !config.channels)
 	error("Invalid config file.");
 
-let discord = new djs.Client(Object.assign({}, config.discord.connection));
-let twitch  = new tmi.client(Object.assign({}, config.twitch));
+let discord   = new djs.Client(Object.assign({}, config.discord.connection));
+let twitch    = new tmi.client(Object.assign({}, config.twitch));
+let twitch_ps = new tps.Client({ clientId: config.twitch.identity.clientid});
 
 let twitch_chat  = {};
 let discord_chat = {};
@@ -100,24 +118,19 @@ class Command_Uptime extends commands.CustomCommand {
 		const now = new Date();
 		if ((now - this.last_api) >= 180000) {
 			this.disabled = true;
-			twitch.api({
-				url: `https://api.twitch.tv/kraken/streams/${this.chat.chan.slice(1)}`,
-				method: "GET",
-				headers: {
-					"Accept":   "application/vnd.twitchtv.v3+json",
-					"Client-ID": config.twitch.identity.clientid
-				}
-			}, (err, res, body) => {
-				this.disabled = false;
-				if (err) {
-					console.log(`[TWITCH API] ${err.message}`);
-					return;
-				}
-				this.last_api = now;
-				this.since    = body && body.stream && body.stream.created_at;
-				if (this.since)
-					resp("Stream started " + moment(this.since).fromNow());
-			});
+			twitch_api({url: `/streams/${this.chat.chan.slice(1)}`})
+				.then( (err) => {
+					this.disabled = false;
+					this.last_api = now;
+					this.since    = body && body.stream && body.stream.created_at;
+					if (this.since)
+						resp("Stream started " + moment(this.since).fromNow());
+				})
+				.catch( (err) => {
+					this.disabled = false;
+					this.last_api = now;
+					console.log(`[TWITCH API] ${err.message || err}`);
+				});
 		} else if (this.since)
 			resp("Stream started " + moment(this.since).fromNow());
 	}
@@ -165,15 +178,33 @@ class TwitchChat {
 	}
 
 	static join(chan, opt = {}) {
-		twitch_chat[chan.toLowerCase()] = new TwitchChat(chan, opt);
+		let chat = new TwitchChat(chan, opt);
+		twitch_chat[chan.toLowerCase()] = chat;
 		return twitch.join(chan).then( () => {
 			console.log(`[TWITCH] Joined "${chan}"`);
+
+			twitch_api({url: `/channels/${chan.slice(1)}`}).then( (c) => {
+				chat.info = c;
+				const topic = util.format("chat_moderator_actions.%d.%d", twitch_user._id, c._id);
+				const oauth = config.twitch.identity.password.startsWith("oauth:")
+					? config.twitch.identity.password.slice(6)
+					: undefined;
+				twitch_ps.subscribe(topic, (data) => chat.logActionTopic(data), oauth)
+					.then( ()     => chat.topic = topic )
+					.catch( (err) => console.log(`[TWITCH PubSub] ${topic}: ${err.message || err}`));
+			})
+			.catch( (err) => {
+				console.log(`[TWITCH API] ${err.message || err}`);
+			});
 		}).catch( (err) => {
 			delete twitch_chat[chan.toLowerCase()];
 		});
 	}
 
 	part() {
+		if (this.topic)
+			twitch_ps.unsubscribe(this.topic);
+
 		this.discord_guild = "";
 		for (let cmd in this.commands)
 			this.commands[cmd].stop();
@@ -282,12 +313,49 @@ class TwitchChat {
 		const target = discord.readyTime && discord.channels.get(this.discord_log);
 		if (target)
 			target.sendFile(log, name, `[${this.chan}] ${action}`).catch( (err) => {
-				console.log(`[DISCORD] ${err.message || err}`);
+				console.log(`[DISCORD] Failed to send file: ${err.message || err}`);
 				console.log(err.stack);
 				console.error(log.toString());
 			});
 		else
 			console.error(`[DISCORD] Channel unavailable ("${log.toString()}")`);
+	}
+
+	logActionObserver(...args) {
+		if (!this.topic || !this.moderators.has(twitch_user.name))
+			this.logAction(...args);
+	}
+
+	logActionTopic(topic) {
+		if (!topic || !topic.message) return;
+		const data = JSON.parse(topic.message).data;
+		if (!data) return;
+
+		let action = undefined;
+		let user   = undefined;
+		switch(data.moderation_action) {
+			case "unban":   action = `${data.created_by} unbanned ${user=data.args[0]}`; break;
+			case "ban":     action = `${data.created_by} banned ${user=data.args[0]} (${data.args[1]||"No reason specified"})`; break;
+			case "timeout": action = `${data.created_by} timed out ${user=data.args[0]} for ${data.args[1]} second${data.args[1]===1?"":"s"} (${data.args[2]||"No reason specified"})`; break;
+			case "clear":   action = `${data.created_by} cleared chat`; break;
+
+			case "slow":           action = `${data.created_by} turned on slow mode (${data.args[0]} second cooldown)`; break;
+			case "slowoff":        action = `${data.created_by} turned off slow mode`; break;
+			case "emoteonly":      action = `${data.created_by} turned on emote-only mode`; break;
+			case "emoteonlyoff":   action = `${data.created_by} turned off emote-only mode`; break;
+			case "r9kbeta":        action = `${data.created_by} turned on R9K mode`; break;
+			case "r9kbetaoff":     action = `${data.created_by} turned off R9K mode`; break;
+			case "subscribers":    action = `${data.created_by} turned on subscribers mode`; break;
+			case "subscribersoff": action = `${data.created_by} turned off subscribers mode`; break;
+
+			case "mod":   this.moderators.add(data.args[0]);    return;
+			case "unmod": this.moderators.delete(data.args[0]); return;
+
+			default:
+				console.log(`[TWITCH PubSub] Unknown moderator action "${data.moderation_action}"`);
+				return
+		}
+		this.logAction(action, user);
 	}
 
 	setCommand(cmd, opt) {
@@ -321,13 +389,13 @@ twitch.on("notice", (chan, id, msg) => console.log(`[TWITCH] notice: ${chan} ${i
 
 twitch.on("clearchat", (chan) => TwitchChat.channel(chan).onClear());
 
-twitch.on("ban",     (chan, user, reason)      => TwitchChat.channel(chan).logAction(`${user} was banned (${reason || "No reason given"})`, user));
-twitch.on("timeout", (chan, user, reason, len) => TwitchChat.channel(chan).logAction(`${user} was timed out for ${len} second${len===1?"":"s"} (${reason || "No reason given"})`, user));
-twitch.on("clearchat",   (chan)                => TwitchChat.channel(chan).logAction("Chat was cleared"));
-twitch.on("emoteonly",   (chan, on)            => TwitchChat.channel(chan).logAction(`Emote-only mode ${on?"enabled":"disabled"}`));
-twitch.on("r9kbeta",     (chan, on)            => TwitchChat.channel(chan).logAction(`R9K mode ${on?"enabled":"disabled"}`));
-twitch.on("slowmode",    (chan, on, wait)      => TwitchChat.channel(chan).logAction(`Slow mode ${on?"enabled":"disabled"} (${wait} second${wait===1?"":"s"} cooldown)`));
-twitch.on("subscribers", (chan, on)            => TwitchChat.channel(chan).logAction(`Subscribers mode ${on?"enabled":"disabled"}`));
+twitch.on("ban",     (chan, user, reason)      => TwitchChat.channel(chan).logActionObserver(`${user} was banned (${reason || "No reason given"})`, user));
+twitch.on("timeout", (chan, user, reason, len) => TwitchChat.channel(chan).logActionObserver(`${user} was timed out for ${len} second${len===1?"":"s"} (${reason || "No reason given"})`, user));
+twitch.on("clearchat",   (chan)                => TwitchChat.channel(chan).logActionObserver("Chat was cleared"));
+twitch.on("emoteonly",   (chan, on)            => TwitchChat.channel(chan).logActionObserver(`Emote-only mode ${on?"enabled":"disabled"}`));
+twitch.on("r9kbeta",     (chan, on)            => TwitchChat.channel(chan).logActionObserver(`R9K mode ${on?"enabled":"disabled"}`));
+twitch.on("slowmode",    (chan, on, wait)      => TwitchChat.channel(chan).logActionObserver(`Slow mode ${on?"enabled":"disabled"} (${wait} second${wait===1?"":"s"} cooldown)`));
+twitch.on("subscribers", (chan, on)            => TwitchChat.channel(chan).logActionObserver(`Subscribers mode ${on?"enabled":"disabled"}`));
 
 twitch.on("whisper", (frm, user, msg, self) => {
 	if (self || !twitch_owners.has(user.username)) return;
@@ -380,10 +448,11 @@ discord.on("ready",        ()    => console.log(`Connected to Discord`));
 discord.on("reconnecting", ()    => console.log(`Reconnecting to Discord`));
 discord.on("error",        (err) => console.log(`[DISCORD] ${err.message}`));
 
+let twitch_user  = twitch_api({url: "/user"}).then( (u) => twitch_user = u );
 let twitch_conn  = twitch.connect();
 let discord_conn = discord.login(config.discord.identity.token || config.discord.identity.email, config.discord.identity.password);
 
-Promise.all([twitch_conn, discord_conn]).then( () => {
+Promise.all([twitch_user, twitch_conn, discord_conn]).then( () => {
 	for (let c in config.channels)
 		TwitchChat.join(c, config.channels[c]);
 }).catch( (err) => {
@@ -418,4 +487,5 @@ process.on("SIGINT", () => {
 	TwitchChat.channels.forEach( (c) => c.part() );
 	twitch_conn.then(() => twitch.disconnect());
 	discord_conn.then(() => discord.destroy());
+	twitch_ps.disconnect();
 });
