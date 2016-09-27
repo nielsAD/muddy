@@ -140,6 +140,18 @@ commands.GLOBALS["join"]   = Command_Join;
 commands.GLOBALS["leave"]  = Command_Leave;
 commands.GLOBALS["uptime"] = Command_Uptime;
 
+const MOD_ACTIONS = {
+	clear:          Symbol("clear"),
+	slow:           Symbol("slow"),
+	slowoff:        Symbol("slowoff"),
+	emoteonly:      Symbol("emoteonly"),
+	emoteonlyoff:   Symbol("emoteonlyoff"),
+	r9kbeta:        Symbol("r9kbeta"),
+	r9kbetaoff:     Symbol("r9kbetaoff"),
+	subscribers:    Symbol("subscribers"),
+	subscribersoff: Symbol("subscribersoff")
+};
+
 class TwitchChat {
 	constructor(chan, opt = {}) {
 		this.chan       = chan;
@@ -298,6 +310,8 @@ class TwitchChat {
 				last[3] = now;
 			else
 				return;
+		else
+			this.users[username] = [null, username, null, now];
 
 		const chat = this.messages
 			.map( ([t, u, m]) => `${(username===u)?"*":" "} ${pad(Math.round((now - t)/1000), 2)}s ago  ${pad(u, 25)}:  ${m}`)
@@ -310,7 +324,7 @@ class TwitchChat {
 				moment(now).tz(this.timezone).format("MMMM Do YYYY, HH:mm:ss z"),
 				action,
 				[...this.moderators].join(", "),
-				(last && this.messages[0] && this.messages[0][0] > last[0])
+				(last && last[0] && this.messages[0] && this.messages[0][0] > last[0])
 					? `* ${pad(Math.round((now - last[0])/1000), 2)}s ago  ${last[1]}`
 					: chat
 			),
@@ -329,8 +343,8 @@ class TwitchChat {
 	}
 
 	logActionObserver(...args) {
-		if (!this.topic || !this.moderators.has(twitch_user.name))
-			this.logAction(...args);
+		// Give PubSub a chance to deliver this message
+		setTimeout( () => this.logAction(...args), 500);
 	}
 
 	logActionTopic(topic) {
@@ -339,13 +353,13 @@ class TwitchChat {
 		if (!data) return;
 
 		let action = undefined;
-		let user   = undefined;
+		let user   = MOD_ACTIONS[data.moderation_action];
 		switch(data.moderation_action) {
 			case "unban":   action = `${data.created_by} unbanned ${user=data.args[0]}`; break;
 			case "ban":     action = `${data.created_by} banned ${user=data.args[0]} (${data.args[1]||"No reason specified"})`; break;
 			case "timeout": action = `${data.created_by} timed out ${user=data.args[0]} for ${data.args[1]} second${data.args[1]===1?"":"s"} (${data.args[2]||"No reason specified"})`; break;
-			case "clear":   action = `${data.created_by} cleared chat`; break;
 
+			case "clear":          action = `${data.created_by} cleared chat`; break;
 			case "slow":           action = `${data.created_by} turned on slow mode (${data.args[0]} second cooldown)`; break;
 			case "slowoff":        action = `${data.created_by} turned off slow mode`; break;
 			case "emoteonly":      action = `${data.created_by} turned on emote-only mode`; break;
@@ -396,13 +410,14 @@ twitch.on("notice", (chan, id, msg) => console.log(`[TWITCH] notice: ${chan} ${i
 
 twitch.on("clearchat", (chan) => TwitchChat.channel(chan).onClear());
 
-twitch.on("ban",     (chan, user, reason)      => TwitchChat.channel(chan).logActionObserver(`${user} was banned (${reason || "No reason given"})`, user));
-twitch.on("timeout", (chan, user, reason, len) => TwitchChat.channel(chan).logActionObserver(`${user} was timed out for ${len} second${len===1?"":"s"} (${reason || "No reason given"})`, user));
-twitch.on("clearchat",   (chan)                => TwitchChat.channel(chan).logActionObserver("Chat was cleared"));
-twitch.on("emoteonly",   (chan, on)            => TwitchChat.channel(chan).logActionObserver(`Emote-only mode ${on?"enabled":"disabled"}`));
-twitch.on("r9kbeta",     (chan, on)            => TwitchChat.channel(chan).logActionObserver(`R9K mode ${on?"enabled":"disabled"}`));
-twitch.on("slowmode",    (chan, on, wait)      => TwitchChat.channel(chan).logActionObserver(`Slow mode ${on?"enabled":"disabled"} (${wait} second${wait===1?"":"s"} cooldown)`));
-twitch.on("subscribers", (chan, on)            => TwitchChat.channel(chan).logActionObserver(`Subscribers mode ${on?"enabled":"disabled"}`));
+twitch.on("ban",     (chan, user, reason)      => TwitchChat.channel(chan).logAction(`${user} was banned (${reason || "No reason given"})`, user));
+twitch.on("timeout", (chan, user, reason, len) => TwitchChat.channel(chan).logAction(`${user} was timed out for ${len} second${len===1?"":"s"} (${reason || "No reason given"})`, user));
+
+twitch.on("clearchat",   (chan)           => TwitchChat.channel(chan).logActionObserver("Chat was cleared", MOD_ACTIONS.clear));
+twitch.on("emoteonly",   (chan, on)       => TwitchChat.channel(chan).logActionObserver(`Emote-only mode ${on?"enabled":"disabled"}`, on?MOD_ACTIONS.emoteonly:MOD_ACTIONS.emoteonlyoff));
+twitch.on("r9kbeta",     (chan, on)       => TwitchChat.channel(chan).logActionObserver(`R9K mode ${on?"enabled":"disabled"}`, on?MOD_ACTIONS.r9kbeta:MOD_ACTIONS.r9kbetaoff));
+twitch.on("slowmode",    (chan, on, wait) => TwitchChat.channel(chan).logActionObserver(`Slow mode ${on?"enabled":"disabled"} (${wait} second${wait===1?"":"s"} cooldown)`, on?MOD_ACTIONS.slow:MOD_ACTIONS.slowoff));
+twitch.on("subscribers", (chan, on)       => TwitchChat.channel(chan).logActionObserver(`Subscribers mode ${on?"enabled":"disabled"}`, on?MOD_ACTIONS.subscribers:MOD_ACTIONS.subscribersoff));
 
 twitch.on("whisper", (frm, user, msg, self) => {
 	if (self || !twitch_owners.has(user.username)) return;

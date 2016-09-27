@@ -117,19 +117,29 @@ class CustomCommand extends Command {
 
 		super(chat, cmd, opt);
 		this.response = opt.response;
+		this.chance   = opt.chance || 0;
 		this.cooldown_time  = opt.cooldown_time  || COOLDOWN_DEF_TIME;
 		this.cooldown_lines = opt.cooldown_lines || COOLDOWN_DEF_LINES;
 	}
 
 	serialize() {
 		const res = Object.assign({}, super.serialize(), {
-			response: this.response || undefined
+			response: this.response || undefined,
+			chance:   this.chance   || undefined
 		});
 		return (Object.keys(res).some( (k) => res[k] !== undefined )) ? res : undefined;
 	}
 
 	respond(resp) {
-		return resp(this.response);
+		if (this.chance > Math.random()*100) return;
+		return resp(Array.isArray(this.response)
+			? this.response[Math.floor(Math.random() * this.response.length)]
+			: this.response
+		);
+	}
+
+	describe() {
+		return `${super.describe()} ${100 - this.chance}% respond chance.`;
 	}
 }
 
@@ -396,12 +406,14 @@ class Command_Cooldown extends Command {
 
 	respond(resp, [cmd, time]) {
 		if (!this.chat) return;
+
+		time = parseInt(time);
 		if (!cmd || !time && time !== 0)
 			return resp(`Usage: ${this.command} ${this.usage}`);
 
 		const c = this.chat.command(cmd);
-		if (!c)
-			resp(`Unknown command "${cmd}"`);
+		if (!c || !(c instanceof CustomCommand))
+			resp(`Unknown custom command "${cmd}"`);
 		else {
 			c.cooldown_time = Math.max(time, 0);
 			resp(AFFERMATIVE());
@@ -431,12 +443,14 @@ class Command_Spacing extends Command {
 
 	respond(resp, [cmd, lines]) {
 		if (!this.chat) return;
+
+		lines = parseInt(lines);
 		if (!cmd || !lines && lines !== 0)
 			return resp(`Usage: ${this.command} ${this.usage}`);
 
 		const c = this.chat.command(cmd);
-		if (!c)
-			resp(`Unknown command "${cmd}"`);
+		if (!c || !(c instanceof CustomCommand))
+			resp(`Unknown custom command "${cmd}"`);
 		else {
 			c.cooldown_lines = Math.max(lines, 0);
 			resp(AFFERMATIVE());
@@ -466,6 +480,8 @@ class Command_Timer extends Command {
 
 	respond(resp, [cmd, time]) {
 		if (!this.chat) return;
+
+		time = parseInt(time);
 		if (!cmd || !time && time !== 0)
 			return resp(`Usage: ${this.command} ${this.usage}`);
 
@@ -491,6 +507,43 @@ class Command_TimerOff extends Command_Timer {
 	}
 }
 
+class Command_Chance extends Command {
+	constructor(...args) {
+		super(...args);
+		this.level = USER_LEVEL.CHANNEL_MOD;
+		this.usage = "[cmd] [0-100%]";
+		this.description = "Set chance for a response message";
+	}
+
+	respond(resp, [cmd, chance]) {
+		if (!this.chat) return;
+
+		chance = parseInt(chance);
+		if (!cmd || !chance && chance !== 0)
+			return resp(`Usage: ${this.command} ${this.usage}`);
+
+		const c = this.chat.command(cmd);
+		if (!c || !(c instanceof CustomCommand))
+			resp(`Unknown custom command "${cmd}"`);
+		else {
+			c.chance = 100-Math.max(Math.min(chance, 100), 0);
+			resp(AFFERMATIVE());
+		}
+	}
+}
+
+class Command_ChanceOff extends Command_Chance {
+	constructor(...args) {
+		super(...args);
+		this.usage = "[cmd]";
+		this.description = "Removes response chance (always respond)";
+	}
+
+	respond(resp, [cmd]) {
+		super.respond(resp, [cmd, 100]);
+	}
+}
+
 class Command_LastSeen extends Command {
 	constructor(...args) {
 		super(...args);
@@ -505,7 +558,7 @@ class Command_LastSeen extends Command {
 			return resp(`Usage: ${this.command} ${this.usage}`);
 
 		const last = this.chat.users[user.toLowerCase()];
-		resp(last
+		resp(last && last[2]
 			? `${user} was last seen ${moment(last[0]).fromNow()} saying "${last[2]}"`
 			: `${user} has not been seen chatting`
 		);
@@ -567,6 +620,8 @@ const GLOBALS = {
 	"spacingoff":    Command_SpacingOff,
 	"repeat":        Command_Timer,
 	"repeatoff":     Command_TimerOff,
+	"chance":        Command_Chance,
+	"chanceoff":     Command_ChanceOff,
 	"lastseen":      Command_LastSeen,
 	"winner":        Command_Winner,
 
