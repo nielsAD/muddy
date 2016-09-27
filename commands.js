@@ -221,6 +221,8 @@ class Command_Timezone extends Command {
 
 	respond(resp, [tz]) {
 		if (!this.chat) return;
+		if (!tz)
+			return resp(`Usage: ${this.command} ${this.usage}. Supported timezones: https://docs.nightbot.tv/commands/variables/time#timezones`);
 
 		if (!moment.tz.zone(tz))
 			resp(`Unknown timezone "${tz}". Supported timezones: https://docs.nightbot.tv/commands/variables/time#timezones`);
@@ -505,7 +507,7 @@ class Command_LastSeen extends Command {
 		const last = this.chat.users[user.toLowerCase()];
 		resp(last
 			? `${user} was last seen ${moment(last[0]).fromNow()} saying "${last[2]}"`
-			: `${user} has not been seen in chat before.`
+			: `${user} has not been seen chatting`
 		);
 	}
 }

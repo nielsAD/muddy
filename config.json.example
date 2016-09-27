@@ -6,7 +6,8 @@
 		},
 		"identity": {
 			"username": "BotName",
-			"password": "oauth:"
+			"password": "oauth:",
+			"clientid": ""
 		},
 		"owners": ["nielsad"]
 	},
