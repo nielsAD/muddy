@@ -19,6 +19,25 @@ Chat
   19s ago   Spammer   SPAM SPAM
 ```
 
+Features
+--------
+* Seamless integration between Discord and Twitch; allow commands to be used from both portals.
+* Log all moderator actions (`ban`/`timeout`/`unban`/`clear`/`slow`/`emoteonly`/`r9kbeta`/`subscribers`).
+* Use the Twitch PubSub API to get more information on events (e.g. moderator who performed the action), fall back to chat API when unavailable.
+* Control multiple Twitch channels from a single Discord channel.
+* Optionally allow configuration by Twitch moderators and/or a specific Discord role.
+* Support for support commands
+  * `!uptime` Get the duration of the stream until now
+  * `!time` Get the local time of the streamer
+  * `!lastseen` Show what a user said last and when it was said
+  * `!winner` Pick a random person from chat
+* Support for simple commands with
+  * Customizable response
+  * Customizable repetition timer
+  * Customizable amount of cooldown time
+  * Customizable amount of cooldown chat lines
+  * Customizable amount of response chance
+
 Setup
 -----
 1. Make sure `nodejs` and `npm` are installed.
