@@ -549,7 +549,7 @@ class Command_LastSeen extends Command {
 		super(...args);
 		this.level = USER_LEVEL.CHANNEL_MOD;
 		this.usage = "[username]";
-		this.description = "Show what a user said last and when he said it";
+		this.description = "Show what user x said last and when it was said";
 	}
 
 	respond(resp, [user]) {
