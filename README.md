@@ -1,7 +1,7 @@
 Muddy
 =====
 
-Muddy is a  moderator bot for Twitch with support for Discord configuration and logging.
+Muddy is a Twitch bot with support for Discord configuration and logging.
 
 For every moderator action (ban, timeout, change of chat mode), Muddy will send a message to a predefined Discord channel with a snapshot of the chatroom at that moment. For example:
 
