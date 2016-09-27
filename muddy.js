@@ -357,7 +357,7 @@ class TwitchChat {
 		switch(data.moderation_action) {
 			case "unban":   action = `${data.created_by} unbanned ${user=data.args[0]}`; break;
 			case "ban":     action = `${data.created_by} banned ${user=data.args[0]} (${data.args[1]||"No reason specified"})`; break;
-			case "timeout": action = `${data.created_by} timed out ${user=data.args[0]} for ${data.args[1]} second${data.args[1]===1?"":"s"} (${data.args[2]||"No reason specified"})`; break;
+			case "timeout": action = `${data.created_by} timed out ${user=data.args[0]} for ${data.args[1]} second${data.args[1]==1?"":"s"} (${data.args[2]||"No reason specified"})`; break;
 
 			case "clear":          action = `${data.created_by} cleared chat`; break;
 			case "slow":           action = `${data.created_by} turned on slow mode (${data.args[0]} second cooldown)`; break;
@@ -411,12 +411,12 @@ twitch.on("notice", (chan, id, msg) => console.log(`[TWITCH] notice: ${chan} ${i
 twitch.on("clearchat", (chan) => TwitchChat.channel(chan).onClear());
 
 twitch.on("ban",     (chan, user, reason)      => TwitchChat.channel(chan).logAction(`${user} was banned (${reason || "No reason given"})`, user));
-twitch.on("timeout", (chan, user, reason, len) => TwitchChat.channel(chan).logAction(`${user} was timed out for ${len} second${len===1?"":"s"} (${reason || "No reason given"})`, user));
+twitch.on("timeout", (chan, user, reason, len) => TwitchChat.channel(chan).logAction(`${user} was timed out for ${len} second${len==1?"":"s"} (${reason || "No reason given"})`, user));
 
 twitch.on("clearchat",   (chan)           => TwitchChat.channel(chan).logActionObserver("Chat was cleared", MOD_ACTIONS.clear));
 twitch.on("emoteonly",   (chan, on)       => TwitchChat.channel(chan).logActionObserver(`Emote-only mode ${on?"enabled":"disabled"}`, on?MOD_ACTIONS.emoteonly:MOD_ACTIONS.emoteonlyoff));
 twitch.on("r9kbeta",     (chan, on)       => TwitchChat.channel(chan).logActionObserver(`R9K mode ${on?"enabled":"disabled"}`, on?MOD_ACTIONS.r9kbeta:MOD_ACTIONS.r9kbetaoff));
-twitch.on("slowmode",    (chan, on, wait) => TwitchChat.channel(chan).logActionObserver(`Slow mode ${on?"enabled":"disabled"} (${wait} second${wait===1?"":"s"} cooldown)`, on?MOD_ACTIONS.slow:MOD_ACTIONS.slowoff));
+twitch.on("slowmode",    (chan, on, wait) => TwitchChat.channel(chan).logActionObserver(`Slow mode ${on?"enabled":"disabled"} (${wait} second${wait==1?"":"s"} cooldown)`, on?MOD_ACTIONS.slow:MOD_ACTIONS.slowoff));
 twitch.on("subscribers", (chan, on)       => TwitchChat.channel(chan).logActionObserver(`Subscribers mode ${on?"enabled":"disabled"}`, on?MOD_ACTIONS.subscribers:MOD_ACTIONS.subscribersoff));
 
 twitch.on("whisper", (frm, user, msg, self) => {
