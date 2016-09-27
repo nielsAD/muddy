@@ -119,12 +119,12 @@ class Command_Uptime extends commands.CustomCommand {
 		if ((now - this.last_api) >= 180000) {
 			this.disabled = true;
 			twitch_api({url: `/streams/${this.chat.chan.slice(1)}`})
-				.then( (err) => {
+				.then( (data) => {
 					this.disabled = false;
 					this.last_api = now;
-					this.since    = body && body.stream && body.stream.created_at;
+					this.since    = data && data.stream && data.stream.created_at;
 					if (this.since)
-						resp("Stream started " + moment(this.since).fromNow());
+						resp("Stream has been for live for about " + moment(this.since).fromNow(true));
 				})
 				.catch( (err) => {
 					this.disabled = false;
@@ -132,7 +132,7 @@ class Command_Uptime extends commands.CustomCommand {
 					console.log(`[TWITCH API] ${err.message || err}`);
 				});
 		} else if (this.since)
-			resp("Stream started " + moment(this.since).fromNow());
+			resp("Stream has been live for about " + moment(this.since).fromNow(true));
 	}
 }
 
@@ -255,7 +255,7 @@ class TwitchChat {
 		this.messages.push(msg);
 	}
 
-	truncateMessages(threshold = new Date() - 80000) {
+	truncateMessages(threshold = new Date() - 70000) {
 		this.messages = this.messages.filter( (log) => log[0] > threshold );
 	}
 
@@ -292,6 +292,13 @@ class TwitchChat {
 	logAction(action, username) {
 		const now = new Date();
 		const last = this.users[username];
+
+		if (last)
+			if (!last[3] || (now-last[3] > 1500))
+				last[3] = now;
+			else
+				return;
+
 		const chat = this.messages
 			.map( ([t, u, m]) => `${(username===u)?"*":" "} ${pad(Math.round((now - t)/1000), 2)}s ago  ${pad(u, 25)}:  ${m}`)
 			.join(newline);
@@ -461,7 +468,7 @@ Promise.all([twitch_user, twitch_conn, discord_conn]).then( () => {
 });
 
 const twitch_chat_clear = setInterval(() => {
-	const threshold = new Date() - 80000;
+	const threshold = new Date() - 70000;
 	TwitchChat.channels.forEach( (c) => c.truncateMessages(threshold) );
 }, 15000);
 
@@ -484,8 +491,9 @@ process.on("SIGINT", () => {
 	console.log("SIGINT received. Disconnecting..");
 	clearInterval(twitch_chat_clear);
 	clearInterval(config_save_clear);
-	TwitchChat.channels.forEach( (c) => c.part() );
-	twitch_conn.then(() => twitch.disconnect());
-	discord_conn.then(() => discord.destroy());
-	twitch_ps.disconnect();
+	Promise.all(TwitchChat.channels.map( (c) => c.part() )).then( () => {
+		twitch_conn.then(() => twitch.disconnect());
+		discord_conn.then(() => discord.destroy());
+		twitch_ps.disconnect();
+	});
 });

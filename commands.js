@@ -216,21 +216,79 @@ class Command_Timezone extends Command {
 		super(...args);
 		this.level = USER_LEVEL.CHANNEL_MOD;
 		this.usage = "[zone]";
-		this.description = "Get/Set timezone";
+		this.description = "Set timezone";
 	}
 
 	respond(resp, [tz]) {
 		if (!this.chat) return;
 
-		if (tz)
-			if (!moment.tz.zone(tz))
-				resp(`Unknown timezone "${tz}". Supported timezones: https://docs.nightbot.tv/commands/variables/time#timezones`);
-			else {
-				this.chat.timezone = tz;
-				resp(AFFERMATIVE());
-			}
+		if (!moment.tz.zone(tz))
+			resp(`Unknown timezone "${tz}". Supported timezones: https://docs.nightbot.tv/commands/variables/time#timezones`);
+		else {
+			this.chat.timezone = tz;
+			resp(AFFERMATIVE());
+		}
+	}
+}
+
+class Command_Mute extends Command {
+	constructor(...args) {
+		super(...args);
+		this.level = USER_LEVEL.CHANNEL_MOD;
+	}
+
+	respond(resp) {
+		if (!this.chat || this.chat.muted) return;
+		resp(AFFERMATIVE());
+		this.chat.muted = true;
+	}
+}
+
+class Command_Unmute extends Command {
+	constructor(...args) {
+		super(...args);
+		this.level = USER_LEVEL.CHANNEL_MOD;
+	}
+
+	respond(resp) {
+		if (!this.chat || !this.chat.muted) return;
+		this.chat.muted = false;
+		resp(AFFERMATIVE());
+	}
+}
+
+class Command_Log extends Command {
+	constructor(...args) {
+		super(...args);
+		this.level = USER_LEVEL.CHANNEL_MOD;
+		this.description = "Save snapshot of the chatroom";
+	}
+
+	respond(resp, reason) {
+		if (!this.chat) return;
+		this.chat.logAction(`User triggered ${this.command} (${reason.join(" ")||"No reason specified"})`);
+		resp(AFFERMATIVE());
+	}
+}
+
+class Command_Command extends Command {
+	constructor(...args) {
+		super(...args);
+		this.level = USER_LEVEL.CHANNEL_MOD;
+		this.usage = "[cmd]";
+		this.description = "Get information on command";
+	}
+
+	respond(resp, [cmd]) {
+		if (!this.chat) return;
+		if (!cmd)
+			return resp(`Usage: ${this.command} ${this.usage}`);
+
+		const c = this.chat.command(cmd);
+		if (!c)
+			resp(`Unknown command "${cmd}"`);
 		else
-			resp(`Timezone: "${this.chat.timezone||"unset"}"`);
+			resp(c.describe());
 	}
 }
 
@@ -279,53 +337,6 @@ class Command_Disable extends Command {
 			c.disabled = true;
 			resp(AFFERMATIVE());
 		}
-	}
-}
-
-class Command_Command extends Command {
-	constructor(...args) {
-		super(...args);
-		this.level = USER_LEVEL.CHANNEL_MOD;
-		this.usage = "[cmd]";
-		this.description = "Get information on command";
-	}
-
-	respond(resp, [cmd]) {
-		if (!this.chat) return;
-		if (!cmd)
-			return resp(`Usage: ${this.command} ${this.usage}`);
-
-		const c = this.chat.command(cmd);
-		if (!c)
-			resp(`Unknown command "${cmd}"`);
-		else
-			resp(c.describe());
-	}
-}
-
-class Command_Mute extends Command {
-	constructor(...args) {
-		super(...args);
-		this.level = USER_LEVEL.CHANNEL_MOD;
-	}
-
-	respond(resp) {
-		if (!this.chat || this.chat.muted) return;
-		resp(AFFERMATIVE());
-		this.chat.muted = true;
-	}
-}
-
-class Command_Unmute extends Command {
-	constructor(...args) {
-		super(...args);
-		this.level = USER_LEVEL.CHANNEL_MOD;
-	}
-
-	respond(resp) {
-		if (!this.chat || !this.chat.muted) return;
-		this.chat.muted = false;
-		resp(AFFERMATIVE());
 	}
 }
 
@@ -478,17 +489,24 @@ class Command_TimerOff extends Command_Timer {
 	}
 }
 
-class Command_Log extends Command {
+class Command_LastSeen extends Command {
 	constructor(...args) {
 		super(...args);
 		this.level = USER_LEVEL.CHANNEL_MOD;
-		this.description = "Save snapshot of the chatroom";
+		this.usage = "[username]";
+		this.description = "Show what a user said last and when he said it";
 	}
 
-	respond(resp, reason) {
-		if (!this.chat) return;
-		this.chat.logAction(`User triggered ${this.command} (${reason.join(" ")||"No reason specified"})`);
-		resp(AFFERMATIVE());
+	respond(resp, [user]) {
+		if (!this.chat || !this.chat.users) return;
+		if (!user)
+			return resp(`Usage: ${this.command} ${this.usage}`);
+
+		const last = this.chat.users[user.toLowerCase()];
+		resp(last
+			? `${user} was last seen ${moment(last[0]).fromNow()} saying "${last[2]}"`
+			: `${user} has not been seen in chat before.`
+		);
 	}
 }
 
@@ -501,10 +519,10 @@ class Command_Winner extends Command {
 	}
 
 	respond(resp, [min = 10]) {
-		if (!this.chat) return;
+		if (!this.chat || !this.chat.users) return;
 
 		const threshold = new Date() - ((parseInt(min)||1) * 60000);
-		const users = Object.keys(this.chat.users||{}).filter( (u) => this.chat.users[u][0] > threshold);
+		const users = Object.keys(this.chat.users).filter( (u) => !this.chat.users[u][3] && this.chat.users[u][0] > threshold);
 		if (users.length < 1) return;
 
 		resp("@" + users[Math.floor(Math.random() * users.length)]);
@@ -525,28 +543,35 @@ class Command_Time extends CustomCommand {
 
 
 const GLOBALS = {
+	//CHANNEL OWNER
 	"discord_guild": Command_DiscordGuild,
 	"discord_mods":  Command_DiscordModRole,
 	"discord_log":   Command_DiscordLogChannel,
 	"modrights":     Command_ModRights,
+
+	// MODERATOR
 	"timezone":      Command_Timezone,
-	"enable":        Command_Enable,
-	"disable":       Command_Disable,
-	"command":       Command_Command,
 	"mute":          Command_Mute,
 	"unmute":        Command_Unmute,
+	"chatlog":       Command_Log,
+	"command":       Command_Command,
+	"enable":        Command_Enable,
+	"disable":       Command_Disable,
 	"set":           Command_Set,
 	"unset":         Command_Unset,
 	"cooldown":      Command_Cooldown,
 	"cooldownoff":   Command_CooldownOff,
 	"spacing":       Command_Spacing,
 	"spacingoff":    Command_SpacingOff,
-	"timer":         Command_Timer,
-	"timeroff":      Command_TimerOff,
-	"log":           Command_Log,
+	"repeat":        Command_Timer,
+	"repeatoff":     Command_TimerOff,
+	"lastseen":      Command_LastSeen,
 	"winner":        Command_Winner,
-	"time":          Command_Time,
 
+	// USER
+	"time":          Command_Time
+
+/*
 	"on":            Command_Enable,
 	"off":           Command_Disable,
 
@@ -556,12 +581,13 @@ const GLOBALS = {
 	"add":           Command_Set,
 	"rem":           Command_Unset,
 
-	"repeat":        Command_Timer,
-	"repeatoff":     Command_TimerOff,
+	"timer":         Command_Timer,
+	"timeroff":      Command_TimerOff,
 	"cycle":         Command_Timer,
 	"cycleoff":      Command_TimerOff,
 
 	"dump":          Command_Log
+*/
 };
 
 module.exports = {
@@ -573,22 +599,26 @@ module.exports = {
 	Command:       Command,
 	CustomCommand: CustomCommand,
 
-	Command_ModRights:   Command_ModRights,
-	Command_Enable:      Command_Enable,
-	Command_Disable:     Command_Disable,
-	Command_Command:     Command_Command,
-	Command_Mute:        Command_Mute,
-	Command_Unmute:      Command_Unmute,
-	Command_Set:         Command_Set,
-	Command_Unset:       Command_Unset,
-	Command_Cooldown:    Command_Cooldown,
-	Command_CooldownOff: Command_CooldownOff,
-	Command_Spacing:     Command_Spacing,
-	Command_SpacingOff:  Command_SpacingOff,
-	Command_Timer:       Command_Timer,
-	Command_TimerOff:    Command_TimerOff,
-	Command_Timezone:    Command_Timezone,
-	Command_Log:         Command_Log,
-	Command_Time:        Command_Time,
-	Command_Winner:      Command_Winner
+	Command_DiscordGuild:      Command_DiscordGuild,
+	Command_DiscordModRole:    Command_DiscordModRole,
+	Command_DiscordLogChannel: Command_DiscordLogChannel,
+	Command_ModRights:         Command_ModRights,
+	Command_Timezone:          Command_Timezone,
+	Command_Mute:              Command_Mute,
+	Command_Unmute:            Command_Unmute,
+	Command_Log:               Command_Log,
+	Command_Command:           Command_Command,
+	Command_Enable:            Command_Enable,
+	Command_Disable:           Command_Disable,
+	Command_Set:               Command_Set,
+	Command_Unset:             Command_Unset,
+	Command_Cooldown:          Command_Cooldown,
+	Command_CooldownOff:       Command_CooldownOff,
+	Command_Spacing:           Command_Spacing,
+	Command_SpacingOff:        Command_SpacingOff,
+	Command_Timer:             Command_Timer,
+	Command_TimerOff:          Command_TimerOff,
+	Command_LastSeen:          Command_LastSeen,
+	Command_Winner:            Command_Winner,
+	Command_Time:              Command_Time
 };
