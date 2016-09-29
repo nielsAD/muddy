@@ -325,7 +325,7 @@ class TwitchChat {
 				action,
 				[...this.moderators].join(", "),
 				(last && last[0] && this.messages[0] && this.messages[0][0] > last[0])
-					? `* ${pad(Math.round((now - last[0])/1000), 2)}s ago  ${last[1]}`
+					? `* ${pad(Math.round((now - last[0])/1000), 2)}s ago  ${pad(last[1], 25)}:  ${last[2]}`
 					: chat
 			),
 			"utf8"
