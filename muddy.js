@@ -336,7 +336,7 @@ class TwitchChat {
 				moment(now).tz(this.timezone).format("MMMM Do YYYY, HH:mm:ss z"),
 				action,
 				[...this.moderators].join(", "),
-				(last && last[0] && this.messages[0] && this.messages[0][0] > last[0])
+				(last && last[0] && (!this.messages[0] || this.messages[0][0] > last[0]))
 					? `* ${pad(Math.round((now - last[0])/1000), 2)}s ago  ${pad(last[1], 25)}:  ${last[2]}`
 					: chat
 			),
