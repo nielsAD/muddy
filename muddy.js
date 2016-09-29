@@ -21,6 +21,15 @@ function pad(s, w, d=" ") {
 		: s;
 }
 
+function uname(u) {
+	if (u && u.username)             return uname(u.username);
+	if (Array.isArray(u))            return u.map(uname);
+	if (!u || typeof u !== "string") return u;
+	if (u.startsWith("@"))
+		u = u.slice(1);
+	return u.toLowerCase();
+}
+
 function twitch_api(opt) {
 	const auth = config.twitch.identity.password.startsWith("oauth:")
 		? "OAuth " + config.twitch.identity.password.slice(6)
@@ -229,13 +238,13 @@ class TwitchChat {
 
 	serialize() {
 		let res = {
-			no_mod_rights:   this.no_mod_rights || undefined,
-			timezone:        this.timezone      || undefined,
-			muted:           this.muted         || undefined,
-			discord_guild:   this.discord_guild || undefined,
-			discord_mods:    this.discord_mods  || undefined,
-			discord_log:     this.discord_log   || undefined,
-			commands:        {}
+			no_mod_rights: this.no_mod_rights || undefined,
+			timezone:      this.timezone      || undefined,
+			muted:         this.muted         || undefined,
+			discord_guild: this.discord_guild || undefined,
+			discord_mods:  this.discord_mods  || undefined,
+			discord_log:   this.discord_log   || undefined,
+			commands:      {}
 		};
 		for (let cmd in this.commands)
 			res.commands[this.commands[cmd].command] = this.commands[cmd].serialize();
@@ -262,6 +271,7 @@ class TwitchChat {
 	}
 
 	addMessage(user, message, date = new Date()) {
+		user = uname(user);
 		const msg = [date, user, message]
 		this.users[user] = msg;
 		this.messages.push(msg);
@@ -272,7 +282,7 @@ class TwitchChat {
 	}
 
 	onMessage(user, message, self) {
-		this.addMessage(user.username, message);
+		this.addMessage(user, message);
 		if (self) return;
 
 		this.num_seen = (this.num_seen + 1) % Number.MAX_SAFE_INTEGER;
@@ -281,12 +291,13 @@ class TwitchChat {
 			const [cmd, ...args] = message.split(/\s+/);
 			const command = this.command(cmd);
 			if (command) {
+				const username = uname(user);
 				const user_level = (
-					twitch_owners.has(user.username)              ? commands.USER_LEVEL.BOT_OWNER :
-					(this.chan.toLowerCase()==="#"+user.username) ? commands.USER_LEVEL.CHANNEL_OWNER :
-					user.mod && !this.no_mod_rights               ? commands.USER_LEVEL.CHANNEL_MOD :
-					user.mod || user.subscriber                   ? commands.USER_LEVEL.SUBSCRIBER :
-					                                                commands.USER_LEVEL.USER
+					twitch_owners.has(username)              ? commands.USER_LEVEL.BOT_OWNER :
+					(this.chan.toLowerCase()==="#"+username) ? commands.USER_LEVEL.CHANNEL_OWNER :
+					user.mod && !this.no_mod_rights          ? commands.USER_LEVEL.CHANNEL_MOD :
+					user.mod || user.subscriber              ? commands.USER_LEVEL.SUBSCRIBER :
+					                                           commands.USER_LEVEL.USER
 				);
 				command.execute((s) => this.say(s), user_level, args);
 			}
@@ -302,7 +313,8 @@ class TwitchChat {
 	}
 
 	logAction(action, username) {
-		const now = new Date();
+		username = uname(username);
+		const now  = new Date();
 		const last = this.users[username];
 
 		if (last)
@@ -349,7 +361,7 @@ class TwitchChat {
 
 	logActionTopic(topic) {
 		if (!topic || !topic.message) return;
-		const data = JSON.parse(topic.message).data;
+		const data = (JSON.parse(topic.message) || {}).data;
 		if (!data) return;
 
 		let action = undefined;
@@ -369,8 +381,10 @@ class TwitchChat {
 			case "subscribers":    action = `${data.created_by} turned on subscribers mode`; break;
 			case "subscribersoff": action = `${data.created_by} turned off subscribers mode`; break;
 
-			case "mod":   this.moderators.add(data.args[0]);    return;
-			case "unmod": this.moderators.delete(data.args[0]); return;
+			case "mod":   this.moderators.add(uname(data.args[0]));    return;
+			case "unmod": this.moderators.delete(uname(data.args[0])); return;
+
+			case "host": return;
 
 			default:
 				console.log(`[TWITCH PubSub] Unknown moderator action "${data.moderation_action}"`);
@@ -400,9 +414,9 @@ class TwitchChat {
 	}
 }
 
-twitch.on("mods",  (chan, mods) => {TwitchChat.channel(chan).moderators = new Set(mods); });
-twitch.on("mod",   (chan, mod)  => {TwitchChat.channel(chan).moderators.add(mod); });
-twitch.on("unmod", (chan, mod)  => {TwitchChat.channel(chan).moderators.delete(mod); });
+twitch.on("mods",  (chan, mods) => {TwitchChat.channel(chan).moderators = new Set(uname(mods)); });
+twitch.on("mod",   (chan, mod)  => {TwitchChat.channel(chan).moderators.add(uname(mod)); });
+twitch.on("unmod", (chan, mod)  => {TwitchChat.channel(chan).moderators.delete(uname(mod)); });
 
 twitch.on("action", (chan, user, msg, self) => TwitchChat.channel(chan).onMessage(user, msg, self));
 twitch.on("chat",   (chan, user, msg, self) => TwitchChat.channel(chan).onMessage(user, msg, self));
@@ -420,7 +434,7 @@ twitch.on("slowmode",    (chan, on, wait) => TwitchChat.channel(chan).logActionO
 twitch.on("subscribers", (chan, on)       => TwitchChat.channel(chan).logActionObserver(`Subscribers mode ${on?"enabled":"disabled"}`, on?MOD_ACTIONS.subscribers:MOD_ACTIONS.subscribersoff));
 
 twitch.on("whisper", (frm, user, msg, self) => {
-	if (self || !twitch_owners.has(user.username)) return;
+	if (self || !twitch_owners.has(uname(user))) return;
 	const [cmd, ...args] = msg.split(/\s+/);
 	const command = commands.GLOBALS[cmd.toLowerCase()];
 	if (command) {
@@ -449,7 +463,7 @@ discord.on("message", (m) => {
 	const role  = Math.max(...[...m.member.roles.values()].map( (r) => r.position ));
 	const roles = [...m.guild.roles.values()];
 
-	const owner = discord_owners.has(user);
+	const owner = discord_owners.has(user.toLowerCase());
 	const admin = m.member.hasPermission("ADMINISTRATOR");
 	chat.forEach( (c) => {
 		const command = c.command(cmd);

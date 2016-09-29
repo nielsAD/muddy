@@ -19,7 +19,7 @@
 			"token": ""
 		},
 		"owners": ["niels#1234"]
-	}
+	},
 	"channels": {
 		"#twitchChannel": {
 			"discord_guild": "discordGuildID",
@@ -31,4 +31,5 @@
 				}
 			}
 		}
+	}
 }
