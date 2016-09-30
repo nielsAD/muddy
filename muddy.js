@@ -83,8 +83,10 @@ class Command_Join extends commands.Command {
 	respond(resp, [chan]) {
 		if (!chan && this.chat)
 			return resp(`Usage: ${this.command} ${this.usage}`);
-		else if (twitch_chat[(chan||"").toLowerCase()])
-			return;
+
+		chan = String(chan).toLowerCase();
+		if (!chan.startsWith("#")) chan = "#"+chan;
+		if (twitch_chat[chan])     return;
 
 		TwitchChat.join(chan).then( () => {
 			TwitchChat.channel(chan).say("I come from the darkness of the pit.");
