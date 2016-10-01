@@ -96,7 +96,7 @@ class Command {
 	execute(resp, user_level = 0, arg = []) {
 		if (this.disabled && user_level < USER_LEVEL.CHANNEL_OWNER) return;
 		if (user_level < this.level) return;
-		const force = (user_level > USER_LEVEL.USER);
+		const force = (user_level >= USER_LEVEL.CHANNEL_MOD);
 
 		const msg = this.chat && this.chat.num_seen;
 		if (!force && (Math.abs(msg - this.last_msg) < this.cooldown_lines)) return;
