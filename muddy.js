@@ -135,7 +135,7 @@ class Command_Uptime extends commands.CustomCommand {
 					this.last_api = now;
 					this.since    = data && data.stream && data.stream.created_at;
 					if (this.since)
-						resp("Stream has been for live for about " + moment(this.since).fromNow(true));
+						resp("Stream has been live for about " + moment(this.since).fromNow(true));
 				})
 				.catch( (err) => {
 					this.disabled = false;
