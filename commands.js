@@ -553,6 +553,23 @@ class Command_ChanceOff extends Command_Chance {
 	}
 }
 
+class Command_Say extends Command {
+	constructor(...args) {
+		super(...args);
+		this.level = USER_LEVEL.CHANNEL_MOD;
+		this.usage = "[message]";
+		this.description = "Say message in Twitch chat.";
+	}
+
+	respond(resp, msg) {
+		if (!this.chat) return
+		if (msg.length < 1)
+			return resp(`Usage: ${this.command} ${this.usage}`);
+
+		this.chat.say(msg.join(" "));
+	}
+}
+
 class Command_LastSeen extends Command {
 	constructor(...args) {
 		super(...args);
@@ -698,6 +715,7 @@ const GLOBALS = {
 	"repeatoff":     Command_TimerOff,
 	"chance":        Command_Chance,
 	"chanceoff":     Command_ChanceOff,
+	"say":           Command_Say,
 	"chatlog":       Command_Log,
 	"timezone":      Command_Timezone,
 	"lastseen":      Command_LastSeen,
@@ -755,6 +773,7 @@ module.exports = {
 	Command_SpacingOff:        Command_SpacingOff,
 	Command_Timer:             Command_Timer,
 	Command_TimerOff:          Command_TimerOff,
+	Command_Say:               Command_Say,
 	Command_LastSeen:          Command_LastSeen,
 	Command_Winner:            Command_Winner,
 	Command_Cmd:               Command_Cmd,
