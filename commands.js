@@ -374,6 +374,7 @@ class Command_Set extends Command {
 			resp(`Command "${cmd}" locked. Pick another.`);
 		else {
 			c.response = msg.join(" ");
+			c.disabled = false;
 			resp(AFFERMATIVE());
 		}
 	}
