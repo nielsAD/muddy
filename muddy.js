@@ -70,7 +70,8 @@ const log_template = [
 	"",
 	"Chat",
 	"----",
-	"%s"
+	"%s",
+	""
 ].join(newline)
 
 class Command_Join extends commands.Command {
@@ -279,7 +280,7 @@ class TwitchChat {
 		this.messages.push(msg);
 	}
 
-	truncateMessages(threshold = new Date() - 70000) {
+	truncateMessages(threshold = new Date() - 80000) {
 		this.messages = this.messages.filter( (log) => log[0] > threshold );
 	}
 
@@ -478,7 +479,7 @@ discord.on("message", (m) => {
 			mod   ? commands.USER_LEVEL.CHANNEL_MOD :
 			        commands.USER_LEVEL.USER
 		);
-		command.execute((s) => !c.muted && m.channel.sendMessage(`[${c.chan}] ${s}`), user_level, args);
+		command.execute((s) => !c.muted && m.channel.sendMessage((chat.size > 1 ? `**[${c.chan}]** ` : "") + s), user_level, args);
 	});
 });
 
@@ -499,7 +500,7 @@ Promise.all([twitch_user, twitch_conn, discord_conn]).then( () => {
 });
 
 const twitch_chat_clear = setInterval(() => {
-	const threshold = new Date() - 70000;
+	const threshold = new Date() - 80000;
 	TwitchChat.channels.forEach( (c) => c.truncateMessages(threshold) );
 }, 15000);
 

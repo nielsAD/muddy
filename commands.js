@@ -4,11 +4,12 @@ const moment = require("moment-timezone");
 
 const DELIM  = "!";
 const USER_LEVEL = {
-	USER         : 0,
-	SUBSCRIBER   : 1,
-	CHANNEL_MOD  : 2,
-	CHANNEL_OWNER: 3,
-	BOT_OWNER    : 4
+	BOT          : 0,
+	USER         : 1,
+	SUBSCRIBER   : 2,
+	CHANNEL_MOD  : 3,
+	CHANNEL_OWNER: 4,
+	BOT_OWNER    : 5
 }
 
 const AFFERMATIVE = function() {
@@ -33,7 +34,7 @@ class Command {
 		this.last_msg  = Number.MIN_SAFE_INTEGER;
 
 		this.disabled       = opt.disabled       || false;
-		this.level          = opt.level          || USER_LEVEL.USER;
+		this.level          = opt.level          || USER_LEVEL.BOT;
 		this.usage          = opt.usage          || "";
 		this.description    = opt.description    || "";
 		this.timer          = opt.timer          || 0;
@@ -82,7 +83,7 @@ class Command {
 		}
 		return (`${this.disabled?"Disabled. " : ""}` +
 			`${this.description?this.description+". ":""}` +
-			`${this.usage?"Usage: "+this.usage+". ":""}` +
+			`${this.usage?"Usage: "+this.command+" "+this.usage+". ":""}` +
 			`${this.timer?this.timer+" minute ":"No"} cycle. ` +
 			`${this.cooldown_time?this.cooldown_time+" second(s)":"No"} cooldown. ` +
 			`${this.cooldown_lines?this.cooldown_lines+" line(s)":"No"} spacing. ` +
@@ -93,8 +94,8 @@ class Command {
 		error("Invalid command usage");
 	}
 
-	execute(resp, user_level = 0, arg = []) {
-		if (this.disabled && user_level < USER_LEVEL.CHANNEL_OWNER) return;
+	execute(resp, user_level = USER_LEVEL.BOT, arg = []) {
+		if (this.disabled && user_level < USER_LEVEL.BOT_OWNER) return;
 		if (user_level < this.level) return;
 		const force = (user_level >= USER_LEVEL.CHANNEL_MOD);
 
@@ -117,7 +118,8 @@ class CustomCommand extends Command {
 
 		super(chat, cmd, opt);
 		this.response = opt.response;
-		this.chance   = opt.chance || 0;
+		this.chance   = opt.chance   || 0;
+		this.triggers = opt.triggers || 0;
 		this.cooldown_time  = opt.cooldown_time  || COOLDOWN_DEF_TIME;
 		this.cooldown_lines = opt.cooldown_lines || COOLDOWN_DEF_LINES;
 	}
@@ -125,12 +127,14 @@ class CustomCommand extends Command {
 	serialize() {
 		const res = Object.assign({}, super.serialize(), {
 			response: this.response || undefined,
-			chance:   this.chance   || undefined
+			chance:   this.chance   || undefined,
+			triggers: this.triggers || undefined
 		});
 		return (Object.keys(res).some( (k) => res[k] !== undefined )) ? res : undefined;
 	}
 
 	respond(resp) {
+		this.triggers += 1;
 		if (this.chance > Math.random()*100) return;
 		return resp(Array.isArray(this.response)
 			? this.response[Math.floor(Math.random() * this.response.length)]
@@ -139,7 +143,9 @@ class CustomCommand extends Command {
 	}
 
 	describe() {
-		return `${super.describe()} ${100 - this.chance}% respond chance.`;
+		return super.describe() +
+			` ${100 - this.chance}% respond chance.` +
+			` Trigged ${this.triggers} time(s).`;
 	}
 }
 
@@ -584,6 +590,74 @@ class Command_Winner extends Command {
 	}
 }
 
+class Command_Help extends CustomCommand {
+	constructor(...args) {
+		super(...args);
+		this.level = USER_LEVEL.CHANNEL_MOD;
+		this.description = "List bot configuration commands";
+	}
+
+	respond(resp) {
+		if (!this.chat) return;
+
+		if (this.chat.muted)
+			try {
+				this.chat.muted = false;
+				resp("Muted. Use !unmute first.");
+			} finally {
+				this.chat.muted = true;
+			}
+
+		let mod = [];
+		let cus = [];
+		let off = [];
+		for (let cmd in this.chat.commands) {
+			cmd = this.chat.commands[cmd];
+			if (cmd.level > USER_LEVEL.CHANNEL_MOD || cmd===this)
+				continue;
+
+			if (cmd.disabled)
+				off.push(cmd.command);
+			else if (cmd.level === USER_LEVEL.CHANNEL_MOD)
+				mod.push(cmd.command)
+			else
+				cus.push(cmd.command);
+		}
+
+		resp("Reporting for duty."
+			+ ' Use !mute to silence me or'
+			+ ` !command [cmd] for specific command info (e.g. !command muddyhelp).`
+			+ " \nModerator Commands: " + mod.join(" ") + "."
+			+ (cus.length > 0 ? " \nUser Commands: " + cus.join(" ") + "." : "")
+			+ (off.length > 0 ? " \nDisabled Commands: " + off.join(" ") + "." : ""));
+	}
+}
+
+class Command_Cmd extends CustomCommand {
+	constructor(...args) {
+		super(...args);
+		this.description = "List usable commands";
+	}
+
+	respond(resp) {
+		if (!this.chat) return;
+
+		let user = [];
+		let subs = [];
+		for (let cmd in this.chat.commands) {
+			cmd = this.chat.commands[cmd];
+			if (cmd.disabled || cmd===this) continue;
+			if (cmd.level <= USER_LEVEL.USER)
+				user.push(cmd.command + (cmd.usage ? " "+cmd.usage : ""));
+			else if (cmd.level <= USER_LEVEL.SUBSCRIBER)
+				subs.push(cmd.command + (cmd.usage ? " "+cmd.usage : ""));
+		}
+
+		if (user.length < 1 && subs.length < 1) return;
+		resp("Use me: " + user.join(" ") + (subs.length > 0 ? " \nSubscribers ony: " + subs.join(" ") : ""));
+	}
+}
+
 class Command_Time extends CustomCommand {
 	constructor(...args) {
 		super(...args);
@@ -605,10 +679,9 @@ const GLOBALS = {
 	"modrights":     Command_ModRights,
 
 	// MODERATOR
-	"timezone":      Command_Timezone,
+	"muddyhelp":     Command_Help,
 	"mute":          Command_Mute,
 	"unmute":        Command_Unmute,
-	"chatlog":       Command_Log,
 	"command":       Command_Command,
 	"enable":        Command_Enable,
 	"disable":       Command_Disable,
@@ -622,10 +695,13 @@ const GLOBALS = {
 	"repeatoff":     Command_TimerOff,
 	"chance":        Command_Chance,
 	"chanceoff":     Command_ChanceOff,
+	"chatlog":       Command_Log,
+	"timezone":      Command_Timezone,
 	"lastseen":      Command_LastSeen,
 	"winner":        Command_Winner,
 
 	// USER
+	"cmd":           Command_Cmd,
 	"time":          Command_Time
 
 /*
@@ -660,6 +736,7 @@ module.exports = {
 	Command_DiscordModRole:    Command_DiscordModRole,
 	Command_DiscordLogChannel: Command_DiscordLogChannel,
 	Command_ModRights:         Command_ModRights,
+	Command_Help:              Command_Help,
 	Command_Timezone:          Command_Timezone,
 	Command_Mute:              Command_Mute,
 	Command_Unmute:            Command_Unmute,
@@ -677,5 +754,6 @@ module.exports = {
 	Command_TimerOff:          Command_TimerOff,
 	Command_LastSeen:          Command_LastSeen,
 	Command_Winner:            Command_Winner,
+	Command_Cmd:               Command_Cmd,
 	Command_Time:              Command_Time
 };
