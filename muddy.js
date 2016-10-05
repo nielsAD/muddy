@@ -286,7 +286,7 @@ class TwitchChat {
 
 	onMessage(user, message, self) {
 		this.addMessage(user, message);
-		if (self) return;
+		if (self || user["user-id"] == twitch_user._id) return;
 
 		this.num_seen = (this.num_seen + 1) % Number.MAX_SAFE_INTEGER;
 

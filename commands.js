@@ -40,8 +40,6 @@ class Command {
 		this.timer          = opt.timer          || 0;
 		this.cooldown_time  = opt.cooldown_time  || 0;
 		this.cooldown_lines = opt.cooldown_lines || 0;
-
-		this.start();
 	}
 
 	serialize() {
@@ -84,7 +82,7 @@ class Command {
 		return (`${this.disabled?"Disabled. " : ""}` +
 			`${this.description?this.description+". ":""}` +
 			`${this.usage?"Usage: "+this.command+" "+this.usage+". ":""}` +
-			`${this.timer?this.timer+" minute ":"No"} cycle. ` +
+			`${this.timer?this.timer+" minute":"No"} cycle. ` +
 			`${this.cooldown_time?this.cooldown_time+" second(s)":"No"} cooldown. ` +
 			`${this.cooldown_lines?this.cooldown_lines+" line(s)":"No"} spacing. ` +
 			(lvl[this.level]||""));
@@ -371,10 +369,11 @@ class Command_Set extends Command {
 		if (!cmd || msg.length < 1)
 			return resp(`Usage: ${this.command} ${this.usage}`);
 
-		if (cmd.toLowerCase() in GLOBALS)
+		const c = this.chat.command(cmd) || this.chat.setCommand(cmd, {});
+		if (!(c instanceof CustomCommand) || c.command.slice(DELIM.length) in GLOBALS)
 			resp(`Command "${cmd}" locked. Pick another.`);
 		else {
-			this.chat.setCommand(cmd, {response: msg.join(" ")});
+			c.response = msg.join(" ");
 			resp(AFFERMATIVE());
 		}
 	}
@@ -393,8 +392,11 @@ class Command_Unset extends Command {
 		if (!cmd)
 			return resp(`Usage: ${this.command} ${this.usage}`);
 
-		if (cmd.toLowerCase() in GLOBALS)
-			resp(`Command "${cmd}" locked. Cannot unset.`);
+		const c = this.chat.command(cmd);
+		if (!c || !(c instanceof CustomCommand))
+			resp(`Unknown custom command "${cmd}"`);
+		else if (c.command.slice(DELIM.length) in GLOBALS)
+			resp(`Command "${cmd}" locked. Use !disable.`);
 		else {
 			this.chat.setCommand(cmd, false);
 			resp(AFFERMATIVE());
