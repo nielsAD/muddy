@@ -145,7 +145,7 @@ class CustomCommand extends Command {
 	describe() {
 		return super.describe() +
 			` ${100 - this.chance}% respond chance.` +
-			` Trigged ${this.triggers} time(s).`;
+			` Triggered ${this.triggers} time(s).`;
 	}
 }
 
@@ -349,7 +349,7 @@ class Command_Disable extends Command {
 		const c = this.chat.command(cmd);
 		if (!c)
 			resp(`Unknown command "${cmd}"`);
-		else if (c instanceof Command_Enable || c instanceof Command_Disable)
+		else if (c instanceof Command_Enable || c instanceof Command_Disable || c instanceof Command_Help)
 			resp("Not happening.")
 		else {
 			c.disabled = true;
