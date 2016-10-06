@@ -483,7 +483,10 @@ discord.on("message", (m) => {
 	});
 });
 
-discord.on("ready",        ()    => console.log(`Connected to Discord`));
+discord.on("ready", ()    => {
+	console.log(`Connected to Discord`);
+	discord.user.setStatus("online", "!cmd or !muddyhelp");
+});
 discord.on("reconnecting", ()    => console.log(`Reconnecting to Discord`));
 discord.on("error",        (err) => console.log(`[DISCORD] ${err.message}`));
 
@@ -492,7 +495,6 @@ let twitch_conn  = twitch.connect();
 let discord_conn = discord.login(config.discord.identity.token || config.discord.identity.email, config.discord.identity.password);
 
 Promise.all([twitch_user, twitch_conn, discord_conn]).then( () => {
-	discord.user.setStatus("online", "!cmd or !muddyhelp");
 	for (let c in config.channels)
 		TwitchChat.join(c, config.channels[c]);
 }).catch( (err) => {
