@@ -137,7 +137,7 @@ class Command_Uptime extends commands.CustomCommand {
 
 	start() {
 		super.start();
-		this.uinterval = setInterval( () => this.enabled && this.update(), 300000);
+		this.uinterval = setInterval( () => this.disabled || this.update(), 300000);
 	}
 
 	stop() {
