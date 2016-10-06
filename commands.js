@@ -630,7 +630,7 @@ class Command_Help extends Command {
 		if (this.chat.muted)
 			try {
 				this.chat.muted = false;
-				resp("Muted. Use !unmute first.");
+				return resp("Muted. Use !unmute first.");
 			} finally {
 				this.chat.muted = true;
 			}
