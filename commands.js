@@ -27,20 +27,13 @@ const COOLDOWN_DEF_LINES = 5;
 
 class Command {
 	constructor(chat, cmd, opt = {}) {
-		if (opt.source) {
-			const source = opt.source;
-			delete opt.source;
-			const res = new (require(source))(chat, cmd, opt);
-			res.source = source;
-			return res;
-		}
-
 		this.chat      = chat;
 		this.command   = cmd;
 		this.interval  = null;
 		this.last_time = Number.MIN_SAFE_INTEGER;
 		this.last_msg  = Number.MIN_SAFE_INTEGER;
 
+		this.source         = opt.source;
 		this.disabled       = opt.disabled       || false;
 		this.level          = opt.level          || USER_LEVEL.BOT;
 		this.usage          = opt.usage          || "";
@@ -142,12 +135,16 @@ class CustomCommand extends Command {
 	}
 
 	respond(resp) {
-		this.triggers += 1;
 		if (!this.response || !this.response.length || this.chance > Math.random()*100) return;
 		return resp(Array.isArray(this.response)
 			? this.response[Math.floor(Math.random() * this.response.length)]
 			: this.response
 		);
+	}
+
+	execute(...args) {
+		this.triggers += 1;
+		return super.execute(...args);
 	}
 
 	describe() {

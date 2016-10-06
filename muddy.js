@@ -415,7 +415,10 @@ class TwitchChat {
 		if (this.commands[c])
 			this.commands[c].stop();
 		if (opt)
-			return this.commands[c] = new commands.CustomCommand(this, cmd, opt);
+			if (opt.source)
+				return this.commands[c] = new (require(opt.source))(this, cmd, opt);
+			else
+				return this.commands[c] = new commands.CustomCommand(this, cmd, opt);
 		else
 			delete this.commands[c];
 	}
