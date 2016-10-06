@@ -21,6 +21,16 @@ function pad(s, w, d=" ") {
 		: s;
 }
 
+function formatDuration(t) {
+	let s = Math.round(t / 1000);
+	if (s < 60) return `${s} second${s===1?"":"s"}`;
+	let m = Math.round(s / 60);
+	if (m < 60) return `${m} minute${m===1?"":"s"}`;
+	let h = Math.floor(m / 60);
+	    m -= h * 60;
+	return `${h} hour${h===1?"":"s"} and ${m} minute${m===1?"":"s"}`;
+}
+
 function uname(u) {
 	if (u && u.username)             return uname(u.username);
 	if (Array.isArray(u))            return u.map(uname);
@@ -120,42 +130,42 @@ class Command_Uptime extends commands.CustomCommand {
 	constructor(...args) {
 		super(...args);
 		this.description = "Get the duration of the stream up until now";
-		this.locked   = true;
-		this.last_api = null;
-		this.since    = null;
+		this.locked = true;
+		this.since  = null;
+		this.update();
+	}
+
+	start() {
+		super.start();
+		this.uinterval = setInterval( () => this.enabled && this.update(), 300000);
+	}
+
+	stop() {
+		super.stop();
+		if (this.uinterval !== null) {
+			clearInterval(this.uinterval);
+			this.uinterval = null;
+		}
+	}
+
+	update() {
+		if (!this.chat || !this.chat.chan || !this.chat.chan.startsWith("#")) return;
+
+		return twitch_api({url: `/streams/${this.chat.chan.slice(1)}`, timeout: 15000})
+			.then( (data) => {
+				this.since = data && data.stream && new Date(data.stream.created_at);
+			})
+			.catch( (err) => {
+				console.log(`[TWITCH API] ${err.message || err}`);
+			});
 	}
 
 	respond(resp) {
-		if (!this.chat || !this.chat.chan || !this.chat.chan.startsWith("#")) return;
-
-		function formatDuration(t) {
-			let s = Math.round(t / 1000);
-			if (s < 60) return `${s} second${s===1?"":"s"}`;
-			let m = Math.round(s / 60);
-			if (m < 60) return `${m} minute${m===1?"":"s"}`;
-			let h = Math.floor(m / 60);
-			    m -= h * 60;
-			return `${h} hour${h===1?"":"s"} and ${m} minute${m===1?"":"s"}`;
-		}
-
 		const now = new Date();
-		if ((now - this.last_api) >= 180000) {
-			this.disabled = true;
-			twitch_api({url: `/streams/${this.chat.chan.slice(1)}`, timeout: 5000})
-				.then( (data) => {
-					this.disabled = false;
-					this.last_api = now;
-					this.since    = data && data.stream && new Date(data.stream.created_at);
-					if (this.since && now > this.since)
-						resp("Stream has been live for " + formatDuration(now - this.since));
-				})
-				.catch( (err) => {
-					this.disabled = false;
-					this.last_api = now;
-					console.log(`[TWITCH API] ${err.message || err}`);
-				});
-		} else if (this.since && now > this.since)
-			resp("Stream has been live for " + formatDuration(now - this.since));
+		resp((this.since && now > this.since)
+			? "Stream has been live for " + formatDuration(now - this.since)
+			: "Stream is offline. Come back later!"
+		);
 	}
 }
 
