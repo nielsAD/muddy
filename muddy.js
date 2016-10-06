@@ -120,6 +120,7 @@ class Command_Uptime extends commands.CustomCommand {
 	constructor(...args) {
 		super(...args);
 		this.description = "Get the duration of the stream up until now";
+		this.locked   = true;
 		this.last_api = null;
 		this.since    = null;
 	}
@@ -127,8 +128,8 @@ class Command_Uptime extends commands.CustomCommand {
 	respond(resp) {
 		if (!this.chat || !this.chat.chan || !this.chat.chan.startsWith("#")) return;
 
-		function formatDuration(d) {
-			let s = Math.round(d / 1000);
+		function formatDuration(t) {
+			let s = Math.round(t / 1000);
 			if (s < 60) return `${s} second${s===1?"":"s"}`;
 			let m = Math.round(s / 60);
 			if (m < 60) return `${m} minute${m===1?"":"s"}`;
@@ -145,7 +146,7 @@ class Command_Uptime extends commands.CustomCommand {
 					this.disabled = false;
 					this.last_api = now;
 					this.since    = data && data.stream && new Date(data.stream.created_at);
-					if (this.since)
+					if (this.since && now > this.since)
 						resp("Stream has been live for " + formatDuration(now - this.since));
 				})
 				.catch( (err) => {
@@ -153,7 +154,7 @@ class Command_Uptime extends commands.CustomCommand {
 					this.last_api = now;
 					console.log(`[TWITCH API] ${err.message || err}`);
 				});
-		} else if (this.since)
+		} else if (this.since && now > this.since)
 			resp("Stream has been live for " + formatDuration(now - this.since));
 	}
 }
@@ -511,9 +512,6 @@ let discord_conn = discord.login(config.discord.identity.token || config.discord
 Promise.all([twitch_user, twitch_conn, discord_conn]).then( () => {
 	for (let c in config.channels)
 		TwitchChat.join(c, config.channels[c]);
-}).catch( (err) => {
-	console.log(`Error connection / loading config (${err.message || err}).`)
-	console.log(err.stack);
 });
 
 const twitch_chat_clear = setInterval(() => {

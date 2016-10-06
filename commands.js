@@ -26,7 +26,15 @@ const COOLDOWN_DEF_TIME  = 5;
 const COOLDOWN_DEF_LINES = 5;
 
 class Command {
-	constructor(chat, cmd, opt = "") {
+	constructor(chat, cmd, opt = {}) {
+		if (opt.source) {
+			const source = opt.source;
+			delete opt.source;
+			const res = new (require(source))(chat, cmd, opt);
+			res.source = source;
+			return res;
+		}
+
 		this.chat      = chat;
 		this.command   = cmd;
 		this.interval  = null;
@@ -44,6 +52,7 @@ class Command {
 
 	serialize() {
 		const res = {
+			source:         this.source         || undefined,
 			disabled:       this.disabled       || undefined,
 			timer:          this.timer          || undefined,
 			cooldown_time:  (this.cooldown_time !== COOLDOWN_DEF_TIME && this.cooldown_time)    || undefined,
@@ -110,7 +119,7 @@ class Command {
 }
 
 class CustomCommand extends Command {
-	constructor(chat, cmd, opt = "") {
+	constructor(chat, cmd, opt = {}) {
 		if (typeof opt === "string")
 			opt = {response: opt};
 
@@ -118,6 +127,7 @@ class CustomCommand extends Command {
 		this.response = opt.response;
 		this.chance   = opt.chance   || 0;
 		this.triggers = opt.triggers || 0;
+		this.locked   = opt.locked   || false;
 		this.cooldown_time  = opt.cooldown_time  || COOLDOWN_DEF_TIME;
 		this.cooldown_lines = opt.cooldown_lines || COOLDOWN_DEF_LINES;
 	}
@@ -370,7 +380,7 @@ class Command_Set extends Command {
 			return resp(`Usage: ${this.command} ${this.usage}`);
 
 		const c = this.chat.command(cmd) || this.chat.setCommand(cmd, {});
-		if (!(c instanceof CustomCommand) || c.command.slice(DELIM.length) in GLOBALS)
+		if (!(c instanceof CustomCommand) || c.locked)
 			resp(`Command "${cmd}" locked. Pick another.`);
 		else {
 			c.response = msg.join(" ");
@@ -396,7 +406,7 @@ class Command_Unset extends Command {
 		const c = this.chat.command(cmd);
 		if (!c || !(c instanceof CustomCommand))
 			resp(`Unknown custom command "${cmd}"`);
-		else if (c.command.slice(DELIM.length) in GLOBALS)
+		else if (c.locked)
 			resp(`Command "${cmd}" locked. Use !disable.`);
 		else {
 			this.chat.setCommand(cmd, false);
@@ -610,7 +620,7 @@ class Command_Winner extends Command {
 	}
 }
 
-class Command_Help extends CustomCommand {
+class Command_Help extends Command {
 	constructor(...args) {
 		super(...args);
 		this.level = USER_LEVEL.CHANNEL_MOD;
@@ -657,6 +667,7 @@ class Command_Cmd extends CustomCommand {
 	constructor(...args) {
 		super(...args);
 		this.description = "List usable commands";
+		this.locked = true;
 	}
 
 	respond(resp) {
@@ -682,6 +693,7 @@ class Command_Time extends CustomCommand {
 	constructor(...args) {
 		super(...args);
 		this.description = "Get local time";
+		this.locked = true;
 	}
 
 	respond(resp) {
