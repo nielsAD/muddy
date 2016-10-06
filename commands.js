@@ -133,7 +133,7 @@ class CustomCommand extends Command {
 
 	respond(resp) {
 		this.triggers += 1;
-		if (this.chance > Math.random()*100) return;
+		if (!this.response || !this.response.length || this.chance > Math.random()*100) return;
 		return resp(Array.isArray(this.response)
 			? this.response[Math.floor(Math.random() * this.response.length)]
 			: this.response

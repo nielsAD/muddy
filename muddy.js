@@ -127,16 +127,26 @@ class Command_Uptime extends commands.CustomCommand {
 	respond(resp) {
 		if (!this.chat || !this.chat.chan || !this.chat.chan.startsWith("#")) return;
 
+		function formatDuration(d) {
+			let s = Math.round(d / 1000);
+			if (s < 60) return `${s} second${s===1?"":"s"}`;
+			let m = Math.round(s / 60);
+			if (m < 60) return `${m} minute${m===1?"":"s"}`;
+			let h = Math.floor(m / 60);
+			    m -= h * 60;
+			return `${h} hour${h===1?"":"s"} and ${m} minute${m===1?"":"s"}`;
+		}
+
 		const now = new Date();
 		if ((now - this.last_api) >= 180000) {
 			this.disabled = true;
-			twitch_api({url: `/streams/${this.chat.chan.slice(1)}`})
+			twitch_api({url: `/streams/${this.chat.chan.slice(1)}`, timeout: 5000})
 				.then( (data) => {
 					this.disabled = false;
 					this.last_api = now;
-					this.since    = data && data.stream && data.stream.created_at;
+					this.since    = data && data.stream && new Date(data.stream.created_at);
 					if (this.since)
-						resp("Stream has been live for about " + moment(this.since).fromNow(true));
+						resp("Stream has been live for " + formatDuration(now - this.since));
 				})
 				.catch( (err) => {
 					this.disabled = false;
@@ -144,7 +154,7 @@ class Command_Uptime extends commands.CustomCommand {
 					console.log(`[TWITCH API] ${err.message || err}`);
 				});
 		} else if (this.since)
-			resp("Stream has been live for about " + moment(this.since).fromNow(true));
+			resp("Stream has been live for " + formatDuration(now - this.since));
 	}
 }
 
