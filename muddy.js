@@ -87,7 +87,7 @@ class Command_Join extends commands.Command {
 
 		chan = String(chan).toLowerCase();
 		if (!chan.startsWith("#")) chan = "#"+chan;
-		if (twitch_chat[chan])     return;
+		if (twitch_chat[chan]) return;
 
 		TwitchChat.join(chan).then( () => {
 			TwitchChat.channel(chan).say("I come from the darkness of the pit.");
@@ -447,12 +447,16 @@ twitch.on("slowmode",    (chan, on, wait) => TwitchChat.channel(chan).logActionO
 twitch.on("subscribers", (chan, on)       => TwitchChat.channel(chan).logActionObserver(`Subscribers mode ${on?"enabled":"disabled"}`, on?MOD_ACTIONS.subscribers:MOD_ACTIONS.subscribersoff));
 
 twitch.on("whisper", (frm, user, msg, self) => {
-	if (self || !twitch_owners.has(uname(user))) return;
-	const [cmd, ...args] = msg.split(/\s+/);
-	const command = commands.GLOBALS[cmd.toLowerCase()];
+	msg = msg.split(/\s+/);
+	if (self || msg.length < 1 || !twitch_owners.has(uname(user))) return;
+
+	const chat = msg[0].startsWith("#") && twitch_chat[msg.shift().toLowerCase()];
+	const [cmd, ...args] = msg;
+	const command = (chat && chat.command(cmd)) ||
+	                (cmd && cmd.toLowerCase() in commands.GLOBALS && new commands.GLOBALS[cmd.toLowerCase()](chat, cmd));
+
 	if (command) {
-		const chat = twitch_chat[(args[0]||"").toLowerCase()];
-		(new command(chat, cmd)).execute((s) => twitch.whisper(frm, s), commands.USER_LEVEL.BOT_OWNER, chat?args.slice(1):args);
+		command.execute((s) => twitch.whisper(frm, s), commands.USER_LEVEL.BOT_OWNER, args);
 	} else {
 		twitch.whisper(frm, "Invalid command.")
 	}
