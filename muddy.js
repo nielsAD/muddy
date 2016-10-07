@@ -132,6 +132,7 @@ class Command_Uptime extends commands.CustomCommand {
 		this.description = "Get the duration of the stream up until now";
 		this.locked = true;
 		this.since  = null;
+		this.down   = 1;
 		this.update();
 	}
 
@@ -153,7 +154,14 @@ class Command_Uptime extends commands.CustomCommand {
 
 		return twitch_api({url: `/streams/${this.chat.chan.slice(1)}`, timeout: 15000})
 			.then( (data) => {
-				this.since = data && data.stream && new Date(data.stream.created_at);
+				if (data && data.stream && data.stream.created_at) {
+					// keep old this.since if available to allow restarts
+					this.down  = 0;
+					this.since = this.since || new Date(data.stream.created_at);
+				} else if (this.since && ++this.down >= 30) {
+					// 15 minutes to allow the stream to come back
+					this.since = null;
+				}
 			})
 			.catch( (err) => {
 				console.log(`[TWITCH API] ${err.message || err}`);
