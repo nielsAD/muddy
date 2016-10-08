@@ -165,6 +165,7 @@ class Command_Uptime extends commands.CustomCommand {
 			})
 			.catch( (err) => {
 				console.log(`[TWITCH API] ${err.message || err}`);
+				console.log(err.stack);
 			});
 	}
 
@@ -248,6 +249,7 @@ class TwitchChat {
 			})
 			.catch( (err) => {
 				console.log(`[TWITCH API] ${err.message || err}`);
+				console.log(err.stack);
 			});
 		}).catch( (err) => {
 			delete twitch_chat[chan.toLowerCase()];
@@ -524,7 +526,7 @@ discord.on("ready", ()    => {
 	discord.user.setStatus("online", "!cmd or !muddyhelp");
 });
 discord.on("reconnecting", ()    => console.log(`Reconnecting to Discord`));
-discord.on("error",        (err) => console.log(`[DISCORD] ${err.message}`));
+discord.on("error",        (err) => console.log(`[DISCORD] ${err.message || err}`));
 
 let twitch_user  = twitch_api({url: "/user"}).then( (u) => twitch_user = u );
 let twitch_conn  = twitch.connect();
@@ -554,6 +556,11 @@ const config_save_clear = function() {
 		}
 	}, 60000);
 }();
+
+process.on("unhandledRejection", (err) => {
+	console.log(`[PROMISE] ${err.message || err}`);
+	console.log(err.stack);
+});
 
 process.on("SIGINT", () => {
 	console.log("SIGINT received. Disconnecting..");
