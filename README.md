@@ -43,6 +43,6 @@ Setup
 1. Make sure `nodejs` and `npm` are installed.
 3. Install dependencies by executing `npm install` inside the Muddy directory.
 4. Rename `config.json.example` to `config.json` and fill in Twitch/Discord/Channel details.
-5. Give your Twitch bot has moderator rights (optional) and your Discord bot `Write Message`/`Upload File` rights.
+5. Give your Twitch bot moderator rights (optional) and your Discord bot `Write Message`/`Upload File` rights.
 6. Run using `node muddy.js`.
 7. Stop Muddy by sending a `SIGINT` (`ctrl+c`).
