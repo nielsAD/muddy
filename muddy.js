@@ -377,7 +377,7 @@ class TwitchChat {
 			"utf8"
 		);
 
-		const target = discord.readyTime && discord.channels.get(this.discord_log);
+		const target = discord.channels.get(this.discord_log);
 		if (target)
 			target.sendFile(log, name, `[${this.chan}] ${action}`).catch( (err) => {
 				console.log(`[DISCORD] Failed to send file: ${err.message || err}`);
