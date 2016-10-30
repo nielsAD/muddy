@@ -690,7 +690,6 @@ class Command_Time extends CustomCommand {
 	constructor(...args) {
 		super(...args);
 		this.description = "Get or convert local time";
-		this.usage = "[time]";
 		this.locked = true;
 	}
 
@@ -702,7 +701,7 @@ class Command_Time extends CustomCommand {
 		if (time.length > 1 && !time[time.length - 1].match(/^(am|pm)$/i)) {
 			timezone = time.pop();
 			if (!moment.tz.zone(timezone)) {
-				resp(`Invalid timezone ${timezone}`);
+				resp(`Invalid timezone. Supported timezones: https://docs.nightbot.tv/commands/variables/time#timezones`);
 				return;
 			}
 		}
