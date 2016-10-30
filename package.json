@@ -24,9 +24,9 @@
   },
   "homepage": "https://github.com/nielsAD/muddy#readme",
   "dependencies": {
-    "discord.js": "^9.2.0",
-    "moment-timezone": "^0.5.5",
-    "tmi.js": "^1.1.1",
+    "discord.js": "^10.0.1",
+    "moment-timezone": "^0.5.7",
+    "tmi.js": "^1.1.2",
     "tps.js": "0.0.2"
   }
 }

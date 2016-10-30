@@ -523,7 +523,8 @@ discord.on("message", (m) => {
 
 discord.on("ready", ()    => {
 	console.log(`Connected to Discord`);
-	discord.user.setStatus("online", "!cmd or !muddyhelp");
+	discord.user.setStatus("online");
+	discord.user.setGame("!cmd or !muddyhelp");
 });
 discord.on("reconnecting", ()    => console.log(`Reconnecting to Discord`));
 discord.on("error",        (err) => console.log(`[DISCORD] ${err.message || err}`));
