@@ -105,7 +105,7 @@ class Command {
 		const now = new Date();
 		if (!force && ((now - this.last_time) < this.cooldown_time*1000)) return;
 
-		this.respond(resp, arg);
+		this.respond(resp, arg.slice());
 		this.last_time = now;
 		this.last_msg  = msg;
 	}
