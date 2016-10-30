@@ -22,8 +22,8 @@ const AFFERMATIVE = function() {
 	return () => arr[Math.floor(Math.random() * arr.length)];
 }();
 
-const COOLDOWN_DEF_TIME  = 5;
-const COOLDOWN_DEF_LINES = 5;
+const COOLDOWN_DEF_TIME  = 10;
+const COOLDOWN_DEF_LINES = 1;
 
 class Command {
 	constructor(chat, cmd, opt = {}) {
@@ -689,13 +689,43 @@ class Command_Cmd extends CustomCommand {
 class Command_Time extends CustomCommand {
 	constructor(...args) {
 		super(...args);
-		this.description = "Get local time";
+		this.description = "Get or convert local time";
+		this.usage = "[time]";
 		this.locked = true;
 	}
 
-	respond(resp) {
+	respond(resp, time) {
 		if (!this.chat) return;
-		resp(moment().tz(this.chat.timezone).format("[Local time is] HH:mm z (MMM Do)"));
+
+		const convert = time.length > 0;
+		let  timezone = this.chat.timezone;
+		if (time.length > 1 && !time[time.length - 1].match(/^(am|pm)$/i)) {
+			timezone = time.pop();
+			if (!moment.tz.zone(timezone)) {
+				resp(`Invalid timezone ${timezone}`);
+				return;
+			}
+		}
+
+		const t = (time.length > 0)
+			? moment.tz(time.join(" ").trim(), ["h:m a", "H:m"], true, timezone)
+			: moment().tz(timezone);
+
+		if (!t.isValid()) {
+			resp(`Invalid time format. Valid examples: ${this.command} 10:30 pm, ${this.command} 22:30, ${this.command} 22:30 CET`);
+			return;
+		}
+
+		resp(convert
+			? `${time} is ${t.fromNow()}. That's
+				${t.tz("Europe/Paris").format("HH:mm")}        in Paris       (${t.tz("Europe/Paris").format("z")}),
+				${t.tz("Europe/Moscow").format("HH:mm")}       in Moscow      (${t.tz("Europe/Moscow").format("z")}),
+				${t.tz("America/New_York").format("HH:mm")}    in New York    (${t.tz("America/New_York").format("z")}),
+				${t.tz("America/Los_Angeles").format("HH:mm")} in Los Angeles (${t.tz("America/Los_Angeles").format("z")}),
+				${t.tz("Asia/Seoul").format("HH:mm")}          in Seoul       (${t.tz("Asia/Seoul").format("z")}), and
+				${t.tz("Asia/Shanghai").format("HH:mm")}       in Shanghai    (${t.tz("Asia/Shanghai").format("z")}).`.replace(/\s+/g, " ")
+			: t.format("[Local time is] HH:mm z (MMM Do)")
+		);
 	}
 }
 
