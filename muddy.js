@@ -418,7 +418,8 @@ class TwitchChat {
 			case "mod":   this.moderators.add(uname(data.args[0]));    return;
 			case "unmod": this.moderators.delete(uname(data.args[0])); return;
 
-			case "host": return;
+			case "host":   return;
+			case "unhost": return;
 
 			default:
 				console.log(`[TWITCH PubSub] Unknown moderator action "${data.moderation_action}"`);
