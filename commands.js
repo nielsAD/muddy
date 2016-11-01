@@ -707,7 +707,7 @@ class Command_Time extends CustomCommand {
 		}
 
 		const t = (time.length > 0)
-			? moment.tz(time.join(" ").trim(), ["h:m a", "H:m"], true, timezone)
+			? moment.tz(time.join(" ").trim(), ["ha", "h a", "h:ma", "h:m a", "H:m"], true, timezone)
 			: moment().tz(timezone);
 
 		if (!t.isValid()) {
@@ -716,13 +716,13 @@ class Command_Time extends CustomCommand {
 		}
 
 		resp(convert
-			? `${time} is ${t.fromNow()}. That's
+			? `${time.join(" ")} is ${t.fromNow()}. That's
+				${t.tz("America/Los_Angeles").format("HH:mm")} in Los Angeles (${t.tz("America/Los_Angeles").format("z")}),
+				${t.tz("America/New_York").format("HH:mm")}    in New York    (${t.tz("America/New_York").format("z")}),
 				${t.tz("Europe/Paris").format("HH:mm")}        in Paris       (${t.tz("Europe/Paris").format("z")}),
 				${t.tz("Europe/Moscow").format("HH:mm")}       in Moscow      (${t.tz("Europe/Moscow").format("z")}),
-				${t.tz("America/New_York").format("HH:mm")}    in New York    (${t.tz("America/New_York").format("z")}),
-				${t.tz("America/Los_Angeles").format("HH:mm")} in Los Angeles (${t.tz("America/Los_Angeles").format("z")}),
-				${t.tz("Asia/Seoul").format("HH:mm")}          in Seoul       (${t.tz("Asia/Seoul").format("z")}), and
-				${t.tz("Asia/Shanghai").format("HH:mm")}       in Shanghai    (${t.tz("Asia/Shanghai").format("z")}).`.replace(/\s+/g, " ")
+				${t.tz("Asia/Shanghai").format("HH:mm")}       in Shanghai    (${t.tz("Asia/Shanghai").format("z")}), and
+				${t.tz("Asia/Seoul").format("HH:mm")}          in Seoul       (${t.tz("Asia/Seoul").format("z")}).`.replace(/\s+/g, " ")
 			: t.format("[Local time is] HH:mm z (MMM Do)")
 		);
 	}
