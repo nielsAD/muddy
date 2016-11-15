@@ -707,7 +707,7 @@ class Command_Time extends CustomCommand {
 		}
 
 		const t = (time.length > 0)
-			? moment.tz(time.join(" ").trim(), ["ha", "h a", "h:ma", "h:m a", "H:m"], true, timezone)
+			? moment.tz(time.join(" ").trim().replace(/\./g, ":"), ["ha", "h a", "h:ma", "h:m a", "H:m"], true, timezone)
 			: moment().tz(timezone);
 
 		if (!t.isValid()) {
