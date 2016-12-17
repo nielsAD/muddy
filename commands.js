@@ -105,9 +105,15 @@ class Command {
 		const now = new Date();
 		if (!force && ((now - this.last_time) < this.cooldown_time*1000)) return;
 
-		this.respond(resp, arg.slice());
-		this.last_time = now;
-		this.last_msg  = msg;
+		this.stop();
+		try {
+			this.respond(resp, arg.slice());
+			return true;
+		} finally {
+			this.last_time = now;
+			this.last_msg  = msg;
+			this.start();
+		}
 	}
 }
 
@@ -143,8 +149,11 @@ class CustomCommand extends Command {
 	}
 
 	execute(...args) {
-		this.triggers += 1;
-		return super.execute(...args);
+		const res = super.execute(...args);
+		if (res) {
+			this.triggers += 1;
+		}
+		return res;
 	}
 
 	describe() {
