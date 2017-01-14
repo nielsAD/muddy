@@ -354,7 +354,7 @@ class TwitchChat {
 		const last = this.users[username];
 
 		if (last)
-			if (!last[3] || (now-last[3] > 1500))
+			if (!last[3] || (now-last[3] > 3000))
 				last[3] = now;
 			else
 				return;
@@ -392,7 +392,7 @@ class TwitchChat {
 
 	logActionObserver(...args) {
 		// Give PubSub a chance to deliver this message
-		setTimeout( () => this.logAction(...args), 500);
+		setTimeout( () => this.logAction(...args), 1500);
 	}
 
 	logActionTopic(topic) {
