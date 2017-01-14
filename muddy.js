@@ -82,7 +82,7 @@ const log_template = [
 	"----",
 	"%s",
 	""
-].join(newline)
+].join(newline);
 
 class Command_Join extends commands.Command {
 	constructor(...args) {
@@ -191,7 +191,9 @@ const MOD_ACTIONS = {
 	r9kbeta:        Symbol("r9kbeta"),
 	r9kbetaoff:     Symbol("r9kbetaoff"),
 	subscribers:    Symbol("subscribers"),
-	subscribersoff: Symbol("subscribersoff")
+	subscribersoff: Symbol("subscribersoff"),
+	followers:      Symbol("followers"),
+	followersoff:   Symbol("followersoff")
 };
 
 class TwitchChat {
@@ -414,6 +416,8 @@ class TwitchChat {
 			case "r9kbetaoff":     action = `${data.created_by} turned off R9K mode`; break;
 			case "subscribers":    action = `${data.created_by} turned on subscribers mode`; break;
 			case "subscribersoff": action = `${data.created_by} turned off subscribers mode`; break;
+			case "followers":      action = `${data.created_by} turned on followers mode (${data.args.join(" ")} threshold)`; break;
+			case "followersoff":   action = `${data.created_by} turned off followers mode`; break;
 
 			case "mod":   this.moderators.add(uname(data.args[0]));    return;
 			case "unmod": this.moderators.delete(uname(data.args[0])); return;
