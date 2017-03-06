@@ -133,16 +133,17 @@ class Command_Uptime extends commands.CustomCommand {
 		this.locked = true;
 		this.since  = null;
 		this.down   = 1;
-		this.update();
 	}
 
-	start() {
-		super.start();
+	enable() {
+		super.enable();
+		this.update();
 		this.uinterval = setInterval( () => this.disabled || this.update(), 30000);
 	}
 
-	stop() {
-		super.stop();
+	disable() {
+		super.disable();
+		this.down = 1;
 		if (this.uinterval !== null) {
 			clearInterval(this.uinterval);
 			this.uinterval = null;
@@ -264,7 +265,7 @@ class TwitchChat {
 
 		this.discord_guild = "";
 		for (let cmd in this.commands)
-			this.commands[cmd].stop();
+			this.commands[cmd].disable();
 
 		return twitch.part(this.chan).then( () => {
 			delete twitch_chat[this.chan.toLowerCase()];
@@ -442,7 +443,7 @@ class TwitchChat {
 
 		const c = cmd.toLowerCase();
 		if (this.commands[c])
-			this.commands[c].stop();
+			this.commands[c].disable();
 		if (opt)
 			if (opt.source)
 				return this.commands[c] = new (require(opt.source))(this, cmd, opt);

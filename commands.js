@@ -54,6 +54,18 @@ class Command {
 		return (Object.keys(res).some( (k) => res[k] !== undefined )) ? res : undefined;
 	}
 
+	get disabled() { return this._disabled; }
+	set disabled(d) {
+		if (this._disabled !== d) {
+			this._disabled = d;
+
+			if (d)
+				this.disable();
+			else
+				this.enable();
+		}
+	}
+
 	get timer() { return this._timer; }
 	set timer(t) {
 		this.stop();
@@ -61,17 +73,26 @@ class Command {
 		this.start();
 	}
 
-	stop() {
-		if (this.interval !== null) {
-			clearInterval(this.interval);
-			this.interval = null;
-		}
+	enable() {
+		this.disable();
+		this.start();
+	}
+
+	disable() {
+		this.stop();
 	}
 
 	start() {
 		this.stop();
 		if (this._timer > 0 && this.chat) {
 			this.interval = setInterval( () => this.execute( (s) => this.chat.say(s) ), this._timer * 60000);
+		}
+	}
+
+	stop() {
+		if (this.interval !== null) {
+			clearInterval(this.interval);
+			this.interval = null;
 		}
 	}
 
@@ -685,9 +706,9 @@ class Command_Cmd extends CustomCommand {
 			cmd = this.chat.commands[cmd];
 			if (cmd.disabled || cmd===this) continue;
 			if (cmd.level <= USER_LEVEL.USER)
-				user.push(cmd.command + (cmd.usage ? " "+cmd.usage : ""));
+				user.push(cmd.command);
 			else if (cmd.level <= USER_LEVEL.SUBSCRIBER)
-				subs.push(cmd.command + (cmd.usage ? " "+cmd.usage : ""));
+				subs.push(cmd.command);
 		}
 
 		if (user.length < 1 && subs.length < 1) return;
