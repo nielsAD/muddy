@@ -573,8 +573,7 @@ process.on("unhandledRejection", (err) => {
 	console.log(err.stack);
 });
 
-process.on("SIGINT", () => {
-	console.log("SIGINT received. Disconnecting..");
+const disconnect = () => {
 	clearInterval(twitch_chat_clear);
 	clearInterval(config_save_clear);
 	Promise.all(TwitchChat.channels.map( (c) => c.part() )).then( () => {
@@ -582,4 +581,16 @@ process.on("SIGINT", () => {
 		discord_conn.then(() => discord.destroy());
 		twitch_ps.disconnect();
 	});
+};
+
+
+process.on("SIGINT", () => {
+	console.log("SIGINT received. Disconnecting..");
+	disconnect();
 });
+
+process.on("SIGTERM", () => {
+	console.log("SIGTERM received. Disconnecting..");
+	disconnect();
+});
+
