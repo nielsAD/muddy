@@ -59,7 +59,15 @@ function twitch_api(opt) {
 if (!config.discord || !config.discord.identity || !config.twitch || !config.twitch.identity || !config.channels)
 	error("Invalid config file.");
 
-let discord   = new djs.Client(Object.assign({}, config.discord.connection));
+let discord = new djs.Client(Object.assign(
+	{
+		api_request_method: "burst",
+		messageCacheMaxSize: 1,
+		disabledEvents: ["TYPING_START", "PRESENCE_UPDATE"]
+	},
+	config.discord.connection
+));
+
 let twitch    = new tmi.client(Object.assign({}, config.twitch));
 let twitch_ps = new tps.Client({ clientId: config.twitch.identity.clientid});
 

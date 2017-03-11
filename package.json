@@ -27,6 +27,6 @@
     "discord.js": "^10.0.1",
     "moment-timezone": "^0.5.7",
     "tmi.js": "^1.1.2",
-    "tps.js": "0.0.2"
+    "tps.js": "^0.0.2"
   }
 }
