@@ -294,6 +294,7 @@ class TwitchChat {
 			discord_guild: this.discord_guild || undefined,
 			discord_mods:  this.discord_mods  || undefined,
 			discord_log:   this.discord_log   || undefined,
+			api_tokens:    this.api_tokens    || undefined,
 			commands:      {}
 		};
 		for (let cmd in this.commands)
@@ -555,7 +556,8 @@ discord.on("error",        (err) => console.log(`[DISCORD] ${err.message || err}
 
 xjs.disable('x-powered-by');
 xjs.use( require('body-parser').urlencoded({ extended: true }) );
-xjs.post('/:chan/:cmd', function (req, res) {
+
+function process_api(req, res, arg) {
 	let chan = String(req.params.chan).toLowerCase();
 	if (!chan.startsWith("#")) chan = "#"+chan;
 	if (!twitch_chat[chan])
@@ -563,14 +565,17 @@ xjs.post('/:chan/:cmd', function (req, res) {
 
 	const lvl = config.api.tokens[req.body.token] || twitch_chat[chan].api_tokens[req.body.token] || 0;
 	const cmd = String(req.params.cmd);
-	const arg = String(req.body.arg).split(/\s+/);
 	const command = twitch_chat[chan].command(cmd);
 	if (!command)
 		return res.status(400).json({ error: 'Command not found' });
 
 	const timeout = setTimeout(() => res.status(408).json({ error: 'Request timeout' }), 3000);
 	command.execute((s) => clearTimeout(timeout) | res.json({ response: s }), lvl, arg, true);
-});
+}
+
+xjs.post('/:chan/:cmd/:arg', (req, res) => process_api(req, res, [req.params.arg].concat(String(req.body.arg).split(/\s+/))));
+xjs.post('/:chan/:cmd',      (req, res) => process_api(req, res, String(req.body.arg).split(/\s+/)));
+xjs.get( '/:chan/:cmd',      (req, res) => process_api(req, res, []));
 
 let twitch_user  = twitch_api({url: "/user"}).then( (u) => twitch_user = u );
 let twitch_conn  = twitch.connect();
