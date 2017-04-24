@@ -1,4 +1,10 @@
 {
+	"api": {
+		"port": 33333,
+		"tokens": {
+			"1234567890": 3
+		}
+	},
 	"twitch": {
 		"connection": {
 			"reconnect": true,

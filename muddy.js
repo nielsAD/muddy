@@ -6,9 +6,12 @@ const moment = require("moment-timezone");
 const tmi    = require("tmi.js");
 const tps    = require("tps.js");
 const djs    = require("discord.js");
+const xjs    = require('express')();
 
 const config   = require("./config.json");
 const commands = require("./commands.js");
+
+xjs.use( require('body-parser').urlencoded({ extended: true }) );
 
 function error(msg) {
 	throw new Error(msg);
@@ -56,7 +59,7 @@ function twitch_api(opt) {
 	});
 }
 
-if (!config.discord || !config.discord.identity || !config.twitch || !config.twitch.identity || !config.channels)
+if (!config.api || !config.api.tokens || !config.discord || !config.discord.identity || !config.twitch || !config.twitch.identity || !config.channels)
 	error("Invalid config file.");
 
 let discord = new djs.Client(Object.assign(
@@ -548,10 +551,29 @@ discord.on("reconnecting", ()    => console.log(`Reconnecting to Discord`));
 discord.on("error",        (err) => console.log(`[DISCORD] ${err.message || err}`));
 
 
+xjs.disable('x-powered-by');
+xjs.use( require('body-parser').urlencoded({ extended: true }) );
+xjs.post('/:chan/:cmd', function (req, res) {
+	let chan = String(req.params.chan).toLowerCase();
+	if (!chan.startsWith("#")) chan = "#"+chan;
+	if (!twitch_chat[chan])
+		return res.status(400).json({ error: 'Channel not found' });
+
+	const lvl = config.api.tokens[req.body.token] || 0;
+	const cmd = String(req.params.cmd);
+	const arg = String(req.body.arg).split(/\s+/);
+	const command = twitch_chat[chan].command(cmd);
+	if (!command)
+		return res.status(400).json({ error: 'Command not found' });
+
+	const timeout = setTimeout(() => res.status(408).json({ error: 'Request timeout' }), 3000);
+	command.execute((s) => clearTimeout(timeout) | res.json({ response: s }), lvl, arg, true);
+});
 
 let twitch_user  = twitch_api({url: "/user"}).then( (u) => twitch_user = u );
 let twitch_conn  = twitch.connect();
 let discord_conn = discord.login(config.discord.identity.token || config.discord.identity.email, config.discord.identity.password);
+let xjs_server   = config.api.port && xjs.listen(config.api.port, () => console.log(`Listening on port ${config.api.port}`));
 
 Promise.all([twitch_user, twitch_conn, discord_conn]).then( () => {
 	for (let c in config.channels)
@@ -583,6 +605,7 @@ process.on("unhandledRejection", (err) => {
 	console.log(err.stack);
 });
 
+
 const disconnect = () => {
 	clearInterval(twitch_chat_clear);
 	clearInterval(config_save_clear);
@@ -590,6 +613,10 @@ const disconnect = () => {
 		twitch_conn.then(() => twitch.disconnect());
 		discord_conn.then(() => discord.destroy());
 		twitch_ps.disconnect();
+
+		if (xjs_server) {
+			xjs_server.close();
+		}
 	});
 };
 
