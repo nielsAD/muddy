@@ -115,10 +115,11 @@ class Command {
 		error("Invalid command usage");
 	}
 
-	execute(resp, user_level = USER_LEVEL.BOT, arg = []) {
+	execute(resp, user_level = USER_LEVEL.BOT, arg = [], force = false) {
 		if (this.disabled && user_level < USER_LEVEL.BOT_OWNER) return;
 		if (user_level < this.level) return;
-		const force = (user_level >= USER_LEVEL.CHANNEL_MOD);
+		if (user_level >= USER_LEVEL.CHANNEL_MOD)
+			force = true;
 
 		const msg = this.chat && this.chat.num_seen;
 		if (!force && (Math.abs(msg - this.last_msg) < this.cooldown_lines)) return;

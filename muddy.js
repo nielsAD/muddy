@@ -535,7 +535,7 @@ discord.on("message", (m) => {
 			mod   ? commands.USER_LEVEL.CHANNEL_MOD :
 			        commands.USER_LEVEL.USER
 		);
-		command.execute((s) => !c.muted && m.channel.sendMessage((chat.size > 1 ? `**[${c.chan}]** ` : "") + s), user_level, args);
+		command.execute((s) => !c.muted && m.channel.sendMessage((chat.size > 1 ? `**[${c.chan}]** ` : "") + s), user_level, args, true);
 	});
 });
 
@@ -546,6 +546,8 @@ discord.on("ready", ()    => {
 });
 discord.on("reconnecting", ()    => console.log(`Reconnecting to Discord`));
 discord.on("error",        (err) => console.log(`[DISCORD] ${err.message || err}`));
+
+
 
 let twitch_user  = twitch_api({url: "/user"}).then( (u) => twitch_user = u );
 let twitch_conn  = twitch.connect();
