@@ -224,6 +224,8 @@ class TwitchChat {
 		this.discord_mods  = opt.discord_mods  || "";
 		this.discord_log   = opt.discord_log   || "";
 
+		this.api_tokens = opt.api_tokens || {};
+
 		this.commands = {};
 		if (!opt.commands)
 			opt.commands = {};
@@ -559,7 +561,7 @@ xjs.post('/:chan/:cmd', function (req, res) {
 	if (!twitch_chat[chan])
 		return res.status(400).json({ error: 'Channel not found' });
 
-	const lvl = config.api.tokens[req.body.token] || 0;
+	const lvl = config.api.tokens[req.body.token] || twitch_chat[chan].api_tokens[req.body.token] || 0;
 	const cmd = String(req.params.cmd);
 	const arg = String(req.body.arg).split(/\s+/);
 	const command = twitch_chat[chan].command(cmd);

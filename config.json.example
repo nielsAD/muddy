@@ -31,6 +31,9 @@
 			"discord_guild": "discordGuildID",
 			"discord_mods":  "discordRoleName",
 			"discord_log":   "discordChannelID",
+			"api_tokens": {
+				"123": 3
+			}
 			"commands": {
 				"!muddy": {
 					"response": "I'm alive! Source available at https://github.com/nielsAD/muddy PogChamp"
