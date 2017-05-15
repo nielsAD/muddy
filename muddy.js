@@ -437,9 +437,9 @@ class TwitchChat {
 			case "mod":   this.moderators.add(uname(data.args[0]));    return;
 			case "unmod": this.moderators.delete(uname(data.args[0])); return;
 
-			case "twitchbot_rejected":         this.addMessage(data.args[0], `/AUTOMOD/ ${data.args[1]}`); return;
-			case "approved_twitchbot_message": return;
-			case "denied_twitchbot_message":   return;
+			case "automod_rejected":         this.addMessage(data.args[0], `/AUTOMOD/ ${data.args[1]}`); return;
+			case "approved_automod_message": return;
+			case "denied_automod_message":   return;
 
 			case "host":   return;
 			case "unhost": return;
