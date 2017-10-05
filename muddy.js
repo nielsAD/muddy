@@ -4,12 +4,12 @@ const fs     = require("fs");
 const util   = require("util");
 const moment = require("moment-timezone");
 const tmi    = require("tmi.js");
-const tps    = require("tps.js");
 const djs    = require("discord.js");
 const xjs    = require('express')();
 
 const config   = require("./config.json");
 const commands = require("./commands.js");
+const pubsub   = require("./pubsub.js");
 
 xjs.use( require('body-parser').urlencoded({ extended: true }) );
 
@@ -72,7 +72,7 @@ let discord = new djs.Client(Object.assign(
 ));
 
 let twitch    = new tmi.client(Object.assign({}, config.twitch));
-let twitch_ps = new tps.Client({ clientId: config.twitch.identity.clientid});
+let twitch_ps = new pubsub.client(config.twitch.identity.password.startsWith("oauth:") ? config.twitch.identity.password.slice(6) : undefined);
 
 let twitch_chat  = {};
 let discord_chat = {};
@@ -256,11 +256,11 @@ class TwitchChat {
 			twitch_api({url: `/channels/${chan.slice(1)}`}).then( (c) => {
 				chat.info = c;
 				const topic = util.format("chat_moderator_actions.%d.%d", twitch_user._id, c._id);
-				const oauth = config.twitch.identity.password.startsWith("oauth:")
-					? config.twitch.identity.password.slice(6)
-					: undefined;
-				twitch_ps.subscribe(topic, (data) => chat.logActionTopic(data), oauth)
-					.then( ()     => chat.topic = topic )
+				twitch_ps.listen([topic])
+					.then( () => {
+						chat.topic = topic;
+						twitch_ps.on(topic, (data) => chat.logActionTopic(data));
+					})
 					.catch( (err) => console.log(`[TWITCH PubSub] ${topic}: ${err.message || err}`));
 			})
 			.catch( (err) => {
@@ -273,8 +273,10 @@ class TwitchChat {
 	}
 
 	part() {
-		if (this.topic)
-			twitch_ps.unsubscribe(this.topic);
+		if (this.topic) {
+			twitch_ps.unlisten([this.topic]).catch( (err) => console.log(`[TWITCH PubSub] ${this.topic}: ${err.message || err}`));;
+			twitch_ps.removeAllListeners(this.topic);
+		}
 
 		this.discord_guild = "";
 		for (let cmd in this.commands)
@@ -396,7 +398,7 @@ class TwitchChat {
 
 		const target = discord.channels.get(this.discord_log);
 		if (target)
-			target.sendFile(log, name, `[${this.chan}] ${action}`).catch( (err) => {
+			target.send(`[${this.chan}] ${action}`, new djs.Attachment(log, name)).catch( (err) => {
 				console.log(`[DISCORD] Failed to send file: ${err.message || err}`);
 				console.log(err.stack);
 				console.error(log.toString());
@@ -413,7 +415,9 @@ class TwitchChat {
 	logActionTopic(topic) {
 		if (!topic || !topic.message) return;
 		const data = (JSON.parse(topic.message) || {}).data;
+
 		if (!data) return;
+		if (!data.args) data.args = [];
 
 		let action = undefined;
 		let user   = MOD_ACTIONS[data.moderation_action];
@@ -421,6 +425,7 @@ class TwitchChat {
 			case "unban":   action = `${data.created_by} unbanned ${user=data.args[0]}`; break;
 			case "ban":     action = `${data.created_by} banned ${user=data.args[0]} (${data.args[1]||"No reason specified"})`; break;
 			case "timeout": action = `${data.created_by} timed out ${user=data.args[0]} for ${data.args[1]} second${data.args[1]==1?"":"s"} (${data.args[2]||"No reason specified"})`; break;
+			case "untimeout": return;
 
 			case "clear":          action = `${data.created_by} cleared chat`; break;
 			case "slow":           action = `${data.created_by} turned on slow mode (${data.args[0]} second cooldown)`; break;
@@ -493,6 +498,7 @@ twitch.on("emoteonly",   (chan, on)       => TwitchChat.channel(chan).logActionO
 twitch.on("r9kbeta",     (chan, on)       => TwitchChat.channel(chan).logActionObserver(`R9K mode ${on?"enabled":"disabled"}`, on?MOD_ACTIONS.r9kbeta:MOD_ACTIONS.r9kbetaoff));
 twitch.on("slowmode",    (chan, on, wait) => TwitchChat.channel(chan).logActionObserver(`Slow mode ${on?"enabled":"disabled"} (${wait} second${wait==1?"":"s"} cooldown)`, on?MOD_ACTIONS.slow:MOD_ACTIONS.slowoff));
 twitch.on("subscribers", (chan, on)       => TwitchChat.channel(chan).logActionObserver(`Subscribers mode ${on?"enabled":"disabled"}`, on?MOD_ACTIONS.subscribers:MOD_ACTIONS.subscribersoff));
+twitch.on("followersonly", (chan, on)     => TwitchChat.channel(chan).logActionObserver(`Followers-only mode ${on?"enabled":"disabled"}`, on?MOD_ACTIONS.subscribers:MOD_ACTIONS.subscribersoff));
 
 twitch.on("whisper", (frm, user, msg, self) => {
 	msg = msg.split(/\s+/);
@@ -515,6 +521,12 @@ twitch.on("connected",    (addr, port) => console.log(`Connected to Twitch (${ad
 twitch.on("logon",        ()           => console.log(`Logged in to Twitch.`));
 twitch.on("disconnected", (reason)     => console.log(`Disconnected from Twitch (${reason})`));
 twitch.on("reconnect",    ()           => console.log("Reconnecting to Twitch"));
+
+twitch_ps.on("connecting",   () => console.log(`Connecting to Twitch PubSub`));
+twitch_ps.on("connected",    () => console.log("Connected to Twitch PubSub"));
+twitch_ps.on("disconnected", () => console.log(`Disconnected from Twitch PubSub`));
+twitch_ps.on("reconnect",    () => console.log("Reconnecting to Twitch PubSub"));
+twitch_ps.on("error",        (err) => console.log(`[PUBSUB] ${err.message || err}`));
 
 discord.on("message", (m) => {
 	if (m.author.bot || m.channel.type !== "text" || !m.content.startsWith(commands.DELIM))
@@ -577,12 +589,13 @@ xjs.post('/:chan/:cmd/:arg', (req, res) => process_api(req, res, [req.params.arg
 xjs.post('/:chan/:cmd',      (req, res) => process_api(req, res, String(req.body.arg).split(/\s+/)));
 xjs.get( '/:chan/:cmd',      (req, res) => process_api(req, res, []));
 
-let twitch_user  = twitch_api({url: "/user"}).then( (u) => twitch_user = u );
-let twitch_conn  = twitch.connect();
-let discord_conn = discord.login(config.discord.identity.token || config.discord.identity.email, config.discord.identity.password);
-let xjs_server   = config.api.port && xjs.listen(config.api.port, () => console.log(`Listening on port ${config.api.port}`));
+let twitch_user   = twitch_api({url: "/user"}).then( (u) => twitch_user = u );
+let twitch_conn   = twitch.connect();
+let twitchps_conn = twitch_ps.connect();
+let discord_conn  = discord.login(config.discord.identity.token || config.discord.identity.email, config.discord.identity.password);
+let xjs_server    = config.api.port && xjs.listen(config.api.port, () => console.log(`Listening on port ${config.api.port}`));
 
-Promise.all([twitch_user, twitch_conn, discord_conn]).then( () => {
+Promise.all([twitch_user, twitch_conn, twitchps_conn, discord_conn]).then( () => {
 	for (let c in config.channels)
 		TwitchChat.join(c, config.channels[c]);
 });
@@ -618,8 +631,8 @@ const disconnect = () => {
 	clearInterval(config_save_clear);
 	Promise.all(TwitchChat.channels.map( (c) => c.part() )).then( () => {
 		twitch_conn.then(() => twitch.disconnect());
+		twitchps_conn.then(() => twitch_ps.disconnect());
 		discord_conn.then(() => discord.destroy());
-		twitch_ps.disconnect();
 
 		if (xjs_server) {
 			xjs_server.close();
