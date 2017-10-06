@@ -100,16 +100,8 @@ class PubSub extends EventEmitter {
 				case "MESSAGE":
 					this.emit("message", event.data);
 
-					if (this.topics.has(event.topic)) {
-						let message = {};
-						try {
-							message = event.data && event.data.message && JSON.parse(event.data.message);
-						} catch(err) {
-							this.emit("error", err);
-							return;
-						}
-
-						this.emit(event.topic, message);
+					if (event.data && this.topics.has(event.data.topic)) {
+						this.emit(event.data.topic, event.data);
 					}
 					break;
 

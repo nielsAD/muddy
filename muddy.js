@@ -490,8 +490,8 @@ twitch.on("notice", (chan, id, msg) => console.log(`[TWITCH] notice: ${chan} ${i
 
 twitch.on("clearchat", (chan) => TwitchChat.channel(chan).onClear());
 
-twitch.on("ban",     (chan, user, reason)      => TwitchChat.channel(chan).logAction(`${user} was banned (${reason || "No reason given"})`, user));
-twitch.on("timeout", (chan, user, reason, len) => TwitchChat.channel(chan).logAction(`${user} was timed out for ${len} second${len==1?"":"s"} (${reason || "No reason given"})`, user));
+twitch.on("ban",     (chan, user, reason)      => TwitchChat.channel(chan).logActionObserver(`${user} was banned (${reason || "No reason given"})`, user));
+twitch.on("timeout", (chan, user, reason, len) => TwitchChat.channel(chan).logActionObserver(`${user} was timed out for ${len} second${len==1?"":"s"} (${reason || "No reason given"})`, user));
 
 twitch.on("clearchat",   (chan)           => TwitchChat.channel(chan).logActionObserver("Chat was cleared", MOD_ACTIONS.clear));
 twitch.on("emoteonly",   (chan, on)       => TwitchChat.channel(chan).logActionObserver(`Emote-only mode ${on?"enabled":"disabled"}`, on?MOD_ACTIONS.emoteonly:MOD_ACTIONS.emoteonlyoff));
