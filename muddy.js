@@ -537,11 +537,11 @@ discord.on("message", (m) => {
 
 	const [cmd, ...args] = m.content.split(/\s+/);
 	const user  = `${m.author.username}#${m.author.discriminator}`;
-	const role  = Math.max(...[...m.member.roles.values()].map( (r) => r.position ));
+	const role  = m.member && Math.max(...[...m.member.roles.values()].map( (r) => r.position ));
 	const roles = [...m.guild.roles.values()];
 
 	const owner = discord_owners.has(user.toLowerCase());
-	const admin = m.member.hasPermission("ADMINISTRATOR");
+	const admin = m.member && m.member.hasPermission("ADMINISTRATOR");
 	chat.forEach( (c) => {
 		const command = c.command(cmd);
 		if (!command) return;
