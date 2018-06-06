@@ -746,6 +746,10 @@ class Command_Time extends CustomCommand {
 			return;
 		}
 
+		if (t.isBefore()) {
+			t.add(1, 'day');
+		}
+
 		resp(convert
 			? `${time.join(" ")} is ${t.fromNow()}. That's
 				${t.tz("America/Los_Angeles").format("HH:mm")} in Los Angeles (${t.tz("America/Los_Angeles").format("z")}),
