@@ -429,9 +429,10 @@ class TwitchChat {
 		let action = undefined;
 		let user   = MOD_ACTIONS[data.moderation_action];
 		switch(data.moderation_action) {
-			case "unban":   action = `${data.created_by} unbanned ${user=data.args[0]}`; break;
-			case "ban":     action = `${data.created_by} banned ${user=data.args[0]} (${data.args[1]||"No reason specified"})`; break;
-			case "timeout": action = `${data.created_by} timed out ${user=data.args[0]} for ${data.args[1]} second${data.args[1]==1?"":"s"} (${data.args[2]||"No reason specified"})`; break;
+			case "delete":    action = `${data.created_by} deleted message from ${user=data.args[0]}`; break;;
+			case "unban":     action = `${data.created_by} unbanned ${user=data.args[0]}`; break;
+			case "ban":       action = `${data.created_by} banned ${user=data.args[0]} (${data.args[1]||"No reason specified"})`; break;
+			case "timeout":   action = `${data.created_by} timed out ${user=data.args[0]} for ${data.args[1]} second${data.args[1]==1?"":"s"} (${data.args[2]||"No reason specified"})`; break;
 			case "untimeout": return;
 
 			case "clear":          action = `${data.created_by} cleared chat`; break;
@@ -452,6 +453,11 @@ class TwitchChat {
 			case "automod_rejected":         this.addMessage(data.args[0], `/AUTOMOD/ ${data.args[1]}`); return;
 			case "approved_automod_message": return;
 			case "denied_automod_message":   return;
+
+			case "add_blocked_term":      return;
+			case "add_permitted_term":    return;
+			case "delete_blocked_term":   return;
+			case "delete_permitted_term": return;
 
 			case "host":   return;
 			case "unhost": return;
