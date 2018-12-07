@@ -144,6 +144,7 @@ class Command_Uptime extends commands.CustomCommand {
 		this.locked = true;
 		this.since  = null;
 		this.down   = 1;
+		this.rerun  = false;
 	}
 
 	enable() {
@@ -167,9 +168,15 @@ class Command_Uptime extends commands.CustomCommand {
 		return twitch_api({url: `/streams/${this.chat.chan.slice(1)}`, timeout: 15000})
 			.then( (data) => {
 				if (data && data.stream && data.stream.created_at) {
-					// keep old this.since if available to allow restarts
-					this.down  = 0;
-					this.since = this.since || new Date(data.stream.created_at);
+					const rr = data.stream.stream_type === "rerun";
+					if (this.rerun != rr) {
+						this.rerun = rr;
+						this.since = new Date(data.stream.created_at);
+					} else {
+						// keep old this.since if available to allow restarts
+						this.since = this.since || new Date(data.stream.created_at);
+					}
+					this.down = 0;
 				} else if (this.since && ++this.down >= 30) {
 					// 15 minutes to allow the stream to come back
 					this.since = null;
@@ -184,7 +191,7 @@ class Command_Uptime extends commands.CustomCommand {
 	respond(resp) {
 		const now = new Date();
 		resp((this.since && now > this.since)
-			? "Stream has been live for " + formatDuration(now - this.since)
+			? (this.rerun ? "Rerun has been going for " : "Stream has been live for ") + formatDuration(now - this.since)
 			: "Stream is offline. Come back later!"
 		);
 	}
