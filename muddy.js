@@ -51,7 +51,7 @@ function twitch_api(opt) {
 		twitch.api(Object.assign({}, opt, {
 			method: "GET",
 			headers: {
-				"Accept":        "application/vnd.twitchtv.v3+json",
+				"Accept":        "application/vnd.twitchtv.v5+json",
 				"Client-ID":     config.twitch.identity.clientid,
 				"Authorization": auth
 			}
