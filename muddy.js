@@ -1,11 +1,12 @@
 "use strict";
 
-const fs     = require("fs");
-const util   = require("util");
-const moment = require("moment-timezone");
-const tmi    = require("tmi.js");
-const djs    = require("discord.js");
-const xjs    = require('express')();
+const fs      = require("fs");
+const util    = require("util");
+const moment  = require("moment-timezone");
+const tmi     = require("tmi.js");
+const djs     = require("discord.js");
+const xjs     = require('express')();
+const request = require("request");
 
 const config   = require("./config.json");
 const commands = require("./commands.js");
@@ -45,17 +46,19 @@ function uname(u) {
 
 function twitch_api(opt) {
 	const auth = config.twitch.identity.password.startsWith("oauth:")
-		? "OAuth " + config.twitch.identity.password.slice(6)
+		? "Bearer " + config.twitch.identity.password.slice(6)
 		: undefined;
 	return new Promise((resolve, reject) => {
-		twitch.api(Object.assign({}, opt, {
+		request(Object.assign({}, opt, {
 			method: "GET",
+			json: true,
+			url: `https://api.twitch.tv/helix/${opt && opt.url || ""}`,
 			headers: {
 				"Accept":        "application/vnd.twitchtv.v5+json",
 				"Client-ID":     config.twitch.identity.clientid,
 				"Authorization": auth
 			}
-		}), (err, res, body) => (err) ? reject(err) : resolve(body));
+		}), (err, res, body) => (err) ? reject(err) : resolve(body && body.data || []));
 	});
 }
 
@@ -165,16 +168,17 @@ class Command_Uptime extends commands.CustomCommand {
 	update() {
 		if (!this.chat || !this.chat.chan || !this.chat.chan.startsWith("#")) return;
 
-		return twitch_api({url: `/streams/${this.chat.chan.slice(1)}`, timeout: 15000})
-			.then( (data) => {
-				if (data && data.stream && data.stream.created_at) {
-					const rr = data.stream.stream_type === "rerun";
+		return twitch_api({url: `/streams?user_login=${this.chat.chan.slice(1)}`, timeout: 15000})
+			.then( (stream) => {
+				stream = stream[0];
+				if (stream && stream.started_at) {
+					const rr = stream.type === "rerun";
 					if (this.rerun != rr) {
 						this.rerun = rr;
-						this.since = new Date(data.stream.created_at);
+						this.since = new Date(stream.started_at);
 					} else {
 						// keep old this.since if available to allow restarts
-						this.since = this.since || new Date(data.stream.created_at);
+						this.since = this.since || new Date(stream.started_at);
 					}
 					this.down = 0;
 				} else if (this.since && ++this.down >= 30) {
@@ -260,9 +264,10 @@ class TwitchChat {
 		return twitch.join(chan).then( () => {
 			console.log(`[TWITCH] Joined "${chan}"`);
 
-			twitch_api({url: `/channels/${chan.slice(1)}`}).then( (c) => {
-				chat.info = c;
-				const topic = util.format("chat_moderator_actions.%d.%d", twitch_user._id, c._id);
+			twitch_api({url: `/users?login=${chan.slice(1)}`}).then( (u) => {
+				u = u[0]
+				chat.info = u;
+				const topic = util.format("chat_moderator_actions.%d.%d", twitch_user.id, u.id);
 				twitch_ps.listen([topic])
 					.then( () => {
 						chat.topic = topic;
@@ -503,8 +508,9 @@ twitch.on("notice", (chan, id, msg) => console.log(`[TWITCH] notice: ${chan} ${i
 
 twitch.on("clearchat", (chan) => TwitchChat.channel(chan).onClear());
 
-twitch.on("ban",     (chan, user, reason)      => TwitchChat.channel(chan).logActionObserver(`${user} was banned (${reason || "No reason given"})`, user));
-twitch.on("timeout", (chan, user, reason, len) => TwitchChat.channel(chan).logActionObserver(`${user} was timed out for ${len} second${len==1?"":"s"} (${reason || "No reason given"})`, user));
+twitch.on("ban",            (chan, user, reason)      => TwitchChat.channel(chan).logActionObserver(`${user} was banned (${reason || "No reason given"})`, user));
+twitch.on("timeout",        (chan, user, reason, len) => TwitchChat.channel(chan).logActionObserver(`${user} was timed out for ${len} second${len==1?"":"s"} (${reason || "No reason given"})`, user));
+twitch.on("messagedeleted", (chan, user, msg, id)     => TwitchChat.channel(chan).logActionObserver(`Deleted message from ${user}`, user));
 
 twitch.on("clearchat",   (chan)           => TwitchChat.channel(chan).logActionObserver("Chat was cleared", MOD_ACTIONS.clear));
 twitch.on("emoteonly",   (chan, on)       => TwitchChat.channel(chan).logActionObserver(`Emote-only mode ${on?"enabled":"disabled"}`, on?MOD_ACTIONS.emoteonly:MOD_ACTIONS.emoteonlyoff));
@@ -602,7 +608,7 @@ xjs.post('/:chan/:cmd/:arg', (req, res) => process_api(req, res, [req.params.arg
 xjs.post('/:chan/:cmd',      (req, res) => process_api(req, res, String(req.body.arg).split(/\s+/)));
 xjs.get( '/:chan/:cmd',      (req, res) => process_api(req, res, []));
 
-let twitch_user   = twitch_api({url: "/user"}).then( (u) => twitch_user = u );
+let twitch_user   = twitch_api({url: "/users"}).then( (u) => twitch_user = u[0] );
 let twitch_conn   = twitch.connect();
 let twitchps_conn = twitch_ps.connect();
 let discord_conn  = discord.login(config.discord.identity.token || config.discord.identity.email, config.discord.identity.password);
