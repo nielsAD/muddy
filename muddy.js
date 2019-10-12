@@ -52,7 +52,7 @@ function twitch_api(opt) {
 		request(Object.assign({}, opt, {
 			method: "GET",
 			json: true,
-			url: `https://api.twitch.tv/helix/${opt && opt.url || ""}`,
+			url: `https://api.twitch.tv/helix/${opt && opt.url && opt.url.replace(new RegExp("^/"), "")  || ""}`,
 			headers: {
 				"Accept":        "application/vnd.twitchtv.v5+json",
 				"Client-ID":     config.twitch.identity.clientid,
@@ -265,7 +265,7 @@ class TwitchChat {
 			console.log(`[TWITCH] Joined "${chan}"`);
 
 			twitch_api({url: `/users?login=${chan.slice(1)}`}).then( (u) => {
-				u = u[0]
+				u = u[0];
 				chat.info = u;
 				const topic = util.format("chat_moderator_actions.%d.%d", twitch_user.id, u.id);
 				twitch_ps.listen([topic])
