@@ -19,7 +19,7 @@
 	},
 	"discord": {
 		"connection": {
-			"api_request_method": "burst"
+			"disableMentions": ""
 		},
 		"identity": {
 			"token": ""

@@ -52,7 +52,7 @@ function twitch_api(opt) {
 		request(Object.assign({}, opt, {
 			method: "GET",
 			json: true,
-			url: `https://api.twitch.tv/helix/${opt && opt.url && opt.url.replace(new RegExp("^/"), "")  || ""}`,
+			url: `https://api.twitch.tv/helix/${opt && opt.url && opt.url.replace(new RegExp("^/"), "") || ""}`,
 			headers: {
 				"Accept":        "application/vnd.twitchtv.v5+json",
 				"Client-ID":     config.twitch.identity.clientid,
@@ -69,7 +69,8 @@ let discord = new djs.Client(Object.assign(
 	{
 		api_request_method: "burst",
 		messageCacheMaxSize: 1,
-		disabledEvents: ["TYPING_START", "PRESENCE_UPDATE"]
+		disabledEvents: ["TYPING_START", "PRESENCE_UPDATE"],
+		intents: [djs.Intents.FLAGS.GUILDS, djs.Intents.FLAGS.GUILD_MESSAGES]
 	},
 	config.discord.connection
 ));
@@ -408,9 +409,12 @@ class TwitchChat {
 			"utf8"
 		);
 
-		const target = discord.channels.get(this.discord_log);
+		const target = discord.channels.cache.get(this.discord_log);
 		if (target)
-			target.send(`[${this.chan}] ${action}`, new djs.Attachment(log, name)).catch( (err) => {
+			target.send({
+				content: `[${this.chan}] ${action}`,
+				files: [new djs.MessageAttachment(log, name)]
+			}).catch( (err) => {
 				console.log(`[DISCORD] Failed to send file: ${err.message || err}`);
 				console.log(err.stack);
 				console.error(log.toString());
@@ -547,8 +551,8 @@ twitch_ps.on("disconnected", () => console.log(`Disconnected from Twitch PubSub`
 twitch_ps.on("reconnect",    () => console.log("Reconnecting to Twitch PubSub"));
 twitch_ps.on("error",        (err) => console.log(`[PUBSUB] ${err.message || err}`));
 
-discord.on("message", (m) => {
-	if (m.author.bot || m.channel.type !== "text" || !m.content.startsWith(commands.DELIM))
+discord.on("messageCreate", (m) => {
+	if (m.author.bot || m.channel.type !== "GUILD_TEXT" || !m.content.startsWith(commands.DELIM))
 		return;
 
 	const chat = discord_chat[m.guild.id];
@@ -556,11 +560,11 @@ discord.on("message", (m) => {
 
 	const [cmd, ...args] = m.content.split(/\s+/);
 	const user  = `${m.author.username}#${m.author.discriminator}`;
-	const role  = m.member && Math.max(...[...m.member.roles.values()].map( (r) => r.position ));
-	const roles = [...m.guild.roles.values()];
+	const role  = m.member && Math.max(...[...m.member.roles.cache.values()].map( (r) => r.position ));
+	const roles = [...m.guild.roles.cache.values()];
 
 	const owner = discord_owners.has(user.toLowerCase());
-	const admin = m.member && m.member.hasPermission("ADMINISTRATOR");
+	const admin = m.member && m.member.permissions.has(djs.Permissions.FLAGS.ADMINISTRATOR);
 	chat.forEach( (c) => {
 		const command = c.command(cmd);
 		if (!command) return;
@@ -572,14 +576,14 @@ discord.on("message", (m) => {
 			mod   ? commands.USER_LEVEL.CHANNEL_MOD :
 			        commands.USER_LEVEL.USER
 		);
-		command.execute((s) => !c.muted && m.channel.sendMessage((chat.size > 1 ? `**[${c.chan}]** ` : "") + s), user_level, args, true);
+		command.execute((s) => !c.muted && m.reply((chat.size > 1 ? `**[${c.chan}]** ` : "") + s), user_level, args, true);
 	});
 });
 
 discord.on("ready", ()    => {
 	console.log(`Connected to Discord`);
 	discord.user.setStatus("online");
-	discord.user.setGame("!cmd or !muddyhelp");
+	discord.user.setActivity("!cmd or !muddyhelp");
 });
 discord.on("reconnecting", ()    => console.log(`Reconnecting to Discord`));
 discord.on("error",        (err) => console.log(`[DISCORD] ${err.message || err}`));

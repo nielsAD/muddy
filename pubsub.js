@@ -68,7 +68,8 @@ class PubSub extends EventEmitter {
 		this.ws.on("close", () => {
 			this.reconnect();
 		});
-		this.ws.on("message", (event) => {
+		this.ws.on("message", (data, isBinary) => {
+			let event = isBinary ? data : data.toString();
 			try {
 				event = JSON.parse(event);
 			} catch(err) {
@@ -93,7 +94,7 @@ class PubSub extends EventEmitter {
 							this.pending[event.nonce][1](new Error(event.error));
 						else
 							this.pending[event.nonce][0]();
-						delete this.pending[event.nonce];			
+						delete this.pending[event.nonce];
 					}
 					break;
 
@@ -138,7 +139,7 @@ class PubSub extends EventEmitter {
 		Object.keys(this.pending).forEach( (nonce) => {
 			clearTimeout(this.pending[nonce][2]);
 			this.pending[nonce][1](new Error("Clear"));
-			delete this.pending[nonce];	
+			delete this.pending[nonce];
 		});
 	}
 
@@ -166,7 +167,7 @@ class PubSub extends EventEmitter {
 				this.pending[nonce][2] = setTimeout(() => {
 					if (nonce in this.pending) {
 						this.pending[nonce][1](new Error("Request timeout"));
-						delete this.pending[nonce];			
+						delete this.pending[nonce];
 					}
 				}, TIMEOUT_REQUEST);
 				this.ws.send(JSON.stringify(message));
